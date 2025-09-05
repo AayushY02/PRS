@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { ENV } from './env';
@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(cors({ origin: ENV.CORS_ORIGIN, credentials: true }));
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }));
 
 app.use('/api/auth', authRouter);
 app.use('/api/regions', regionsRouter);
