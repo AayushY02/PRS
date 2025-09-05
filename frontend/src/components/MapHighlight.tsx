@@ -1,48 +1,75 @@
-import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Skeleton } from './ui/skeleton';
+// src/components/MapHighlight.tsx
+import { useEffect, useRef } from 'react';
+import maplibregl, { Map as MLMap } from 'maplibre-gl';
 
-type Props = { images: string[]; activeIndex?: number | null; };
-export default function MapHighlight({ images, activeIndex = null }: Props) {
-    const [index, setIndex] = useState(0);
-    const timer = useRef<number | null>(null);
-    const [loaded, setLoaded] = useState(false);
+// Make sure you import the MapLibre CSS once in your app, e.g. in src/main.tsx:
+// import 'maplibre-gl/dist/maplibre-gl.css';
 
-    useEffect(() => {
-        if (activeIndex !== null && activeIndex !== undefined) {
-            setIndex(activeIndex);
-            return;
-        }
-        timer.current && window.clearInterval(timer.current);
-        timer.current = window.setInterval(() => {
-            setIndex(i => (i + 1) % Math.max(images.length || 1, 1));
-        }, 2000);
-        return () => { if (timer.current) window.clearInterval(timer.current); };
-    }, [images, activeIndex]);
+type Props = {
+  /** Optional override; defaults to Kashiwa (139.9698, 35.8617) */
+  center?: [number, number];
+  /** Optional override; defaults to 12.5 */
+  zoom?: number;
+  /** Optional style URL; defaults to MapLibre demo style */
+  styleUrl?: string;
+  /** Set to false to hide the top-right nav control (defaults to true) */
+  navControl?: boolean;
+  /** Extra class names for the container */
+  className?: string;
+};
 
-    const src = images[index];
+const DEFAULT_CENTER: [number, number] = [139.9698, 35.8617]; // Kashiwa
+const DEFAULT_ZOOM = 12.5;
+const DEFAULT_STYLE = 'https://api.maptiler.com/maps/0198c5ad-6f66-73ba-9ee3-d35051ed4097/style.json?key=HCoMhdrImqEq1BdoYmms';
 
-    return (
-        <div className="w-full aspect-video rounded-2xl overflow-hidden border relative">
-            {!loaded && <Skeleton className="absolute inset-0" />}
-            <AnimatePresence mode="wait">
-                {src ? (
-                    <motion.img
-                        key={src}
-                        src={src}
-                        alt="subarea"
-                        onLoad={() => setLoaded(true)}
-                        className="w-full h-full object-cover"
-                        initial={{ opacity: 0, scale: 1.02 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.02 }}
-                        transition={{ duration: 0.35 }}
-                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/640/360?blur=2'; setLoaded(true); }}
-                    />
-                ) : (
-                    <div className="w-full h-full grid place-items-center text-gray-400 text-xs">No image</div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
+export default function MapHighlight({
+  center = DEFAULT_CENTER,
+  zoom = DEFAULT_ZOOM,
+  styleUrl = DEFAULT_STYLE,
+  navControl = true,
+  className = 'relative w-full aspect-video rounded-2xl overflow-hidden border',
+}: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MLMap | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: styleUrl,
+      center,
+      zoom,
+      attributionControl: false,
+      interactive: true,
+    });
+    mapRef.current = map;
+
+    if (navControl) {
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    }
+
+    // Keep map sized to container
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(containerRef.current);
+
+    // If center/zoom props change later, update the view
+    const onLoad = () => {
+      map.setCenter(center);
+      map.setZoom(zoom);
+    };
+    map.on('load', onLoad);
+
+    return () => {
+      ro.disconnect();
+      map.off('load', onLoad);
+      map.remove();
+      mapRef.current = null;
+    };
+    // We intentionally don't include center/zoom/styleUrl in deps
+    // to avoid re-creating the map instance; we update view on 'load' above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <div ref={containerRef} className={className} />;
 }

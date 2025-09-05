@@ -8,7 +8,7 @@ import { useAtom, useSetAtom } from 'jotai';
 import { api } from './lib/api';
 import { authAtom } from './state/auth';
 import { Button } from '@/components/ui/button';
-
+import 'maplibre-gl/dist/maplibre-gl.css';
 export default function App() {
   useAuthBootstrap();
 
