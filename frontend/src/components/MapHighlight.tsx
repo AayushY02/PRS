@@ -20,7 +20,7 @@ type Props = {
 
 const DEFAULT_CENTER: [number, number] = [139.9698, 35.8617]; // Kashiwa
 const DEFAULT_ZOOM = 12.5;
-const DEFAULT_STYLE = 'https://api.maptiler.com/maps/0198c5ad-6f66-73ba-9ee3-d35051ed4097/style.json?key=HCoMhdrImqEq1BdoYmms';
+const DEFAULT_STYLE = import.meta.env.VITE_MAP_STYLE;
 
 export default function MapHighlight({
   center = DEFAULT_CENTER,
