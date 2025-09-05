@@ -348,15 +348,29 @@ bookingsRouter.get('/mine', authRequired, async (req: Request, res: Response) =>
  * Soft-cancel an active booking (optional, keeps history).
  */
 bookingsRouter.delete('/:id', authRequired, async (req, res) => {
-  const userId = (req as any).userId as string;
-  const { id } = req.params;
+  // These narrows ensure we never pass undefined into eq(...)
+  const userId = (req as any).userId as string | undefined;
+  const idParam = req.params?.id;
+
+  if (!userId || !idParam) {
+    return res.status(400).json({ error: 'Missing user or booking id' });
+  }
 
   const r = await db
     .update(schema.bookings)
-    .set({ status: 'cancelled' })
-    .where(and(eq(schema.bookings.id, id), eq(schema.bookings.userId, userId), eq(schema.bookings.status, 'active')))
+    .set({ status: 'cancelled' as const })
+    .where(
+      and(
+        eq(schema.bookings.id, idParam),            // idParam is now a string
+        eq(schema.bookings.userId, userId),         // userId is now a string
+        eq(schema.bookings.status, 'active' as const) // preserve literal type for enum
+      )
+    )
     .returning({ id: schema.bookings.id });
 
-  if (!r[0]) return res.status(404).json({ error: 'Booking not found or already cancelled' });
+  if (!r[0]) {
+    return res.status(404).json({ error: 'Booking not found or already cancelled' });
+  }
   res.json({ ok: true });
 });
+
