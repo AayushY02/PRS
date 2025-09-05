@@ -55,7 +55,7 @@
 // });
 
 
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { AuthPayload, createUser, signJWT, verifyUser } from '../auth';
 import { ENV } from '../env';
 import { db, schema } from '../db'; // << add this
@@ -73,7 +73,7 @@ const setCookie = (res: any, token: string) => {
   });
 };
 
-authRouter.post('/signup', async (req, res) => {
+authRouter.post('/signup', async (req: Request, res: Response) => {
   const parse = AuthPayload.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
 
@@ -85,7 +85,7 @@ authRouter.post('/signup', async (req, res) => {
   res.json({ ok: true, user: { id: created.id, email: parse.data.email } });
 });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', async (req: Request, res: Response) => {
   const parse = AuthPayload.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
 
@@ -97,7 +97,7 @@ authRouter.post('/login', async (req, res) => {
   res.json({ ok: true, user: { id: userId, email: parse.data.email } });
 });
 
-authRouter.post('/logout', (req, res) => {
+authRouter.post('/logout', (req: Request, res: Response) => {
   res.clearCookie(ENV.COOKIE_NAME, { path: '/' });
   res.json({ ok: true });
 });
@@ -106,7 +106,7 @@ authRouter.post('/logout', (req, res) => {
  * Return current user (id + email) if cookie is valid.
  * (No middleware: it’s fine to decode/lookup here.)
  */
-authRouter.get('/me', async (req, res) => {
+authRouter.get('/me', async (req: Request, res: Response) => {
   const token = req.cookies[ENV.COOKIE_NAME];
   if (!token) return res.json({ user: null });
 

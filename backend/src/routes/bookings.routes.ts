@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { authRequired } from '../middleware/authRequired';
 import { db, schema } from '../db';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { sql as raw } from 'drizzle-orm';
 
 export const bookingsRouter = Router();
@@ -18,7 +18,7 @@ const CreateBooking = z.object({
 
 bookingsRouter.use(authRequired);
 
-bookingsRouter.get('/mine', async (req, res) => {
+bookingsRouter.get('/mine', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
   // We need time_range text; cast to text in query
   const rows = await db.execute(
@@ -30,7 +30,7 @@ bookingsRouter.get('/mine', async (req, res) => {
   res.json({ bookings: (rows as any).rows });
 });
 
-bookingsRouter.post('/', async (req, res) => {
+bookingsRouter.post('/', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
   const parsed = CreateBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -54,36 +54,84 @@ bookingsRouter.post('/', async (req, res) => {
   }
 });
 
-bookingsRouter.patch('/:id', async (req, res) => {
-  const userId = (req as any).userId as string;
-  const { id } = req.params;
-  const Body = z.object({ comment: z.string().max(1000).nullable() });
-  const parsed = Body.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+bookingsRouter.patch('/:id', async (req: Request, res: Response) => {
+  // userId injected by your auth middleware
+  const userId = (req as any).userId as string | undefined;
 
+  // 1) Validate route params (id must be a UUID string)
+  const Params = z.object({ id: z.string().uuid() });
+  const Body = z.object({ comment: z.string().max(1000).nullable() });
+
+  const paramsParse = Params.safeParse(req.params);
+  if (!paramsParse.success) {
+    return res.status(400).json({ error: paramsParse.error.flatten() });
+  }
+  const { id } = paramsParse.data;
+
+  // Optional: ensure userId exists and is a uuid as well
+  const UserId = z.string().uuid();
+  const userIdParse = UserId.safeParse(userId);
+  if (!userIdParse.success) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const bodyParse = Body.safeParse(req.body);
+  if (!bodyParse.success) {
+    return res.status(400).json({ error: bodyParse.error.flatten() });
+  }
+
+  // 2) Build the update with a single where + and(...)
   const r = await db
     .update(schema.bookings)
-    .set({ comment: parsed.data.comment ?? null })
-    .where(eq(schema.bookings.id, id))
-    .where(eq(schema.bookings.userId, userId))
+    .set({ comment: bodyParse.data.comment ?? null })
+    .where(
+      and(
+        eq(schema.bookings.id, id),
+        eq(schema.bookings.userId, userIdParse.data)
+      )
+    )
     .returning({ id: schema.bookings.id });
 
   if (!r[0]) return res.status(404).json({ error: 'Booking not found' });
+
   res.json({ ok: true });
 });
+bookingsRouter.delete('/:id', async (req: Request, res: Response) => {
+  const userId = (req as any).userId as string | undefined;
 
-bookingsRouter.delete('/:id', async (req, res) => {
-  const userId = (req as any).userId as string;
-  const { id } = req.params;
+  // Validate params/body
+  const Params = z.object({ id: z.string().uuid() });
+  const params = Params.safeParse(req.params);
+  if (!params.success) {
+    return res.status(400).json({ error: params.error.flatten() });
+  }
+  const { id } = params.data;
 
+  // Ensure userId is present and looks like a UUID (adjust if your user id is not UUID)
+  const userIdSchema = z.string().uuid();
+  const parsedUser = userIdSchema.safeParse(userId);
+  if (!parsedUser.success) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Perform soft cancel only if it belongs to user and is active
   const r = await db
     .update(schema.bookings)
-    .set({ status: 'cancelled' })
-    .where(eq(schema.bookings.id, id))
-    .where(eq(schema.bookings.userId, userId))
-    .where(eq(schema.bookings.status, 'active'))
+    .set({ status: 'cancelled' as const })
+    .where(
+      and(
+        eq(schema.bookings.id, id),
+        eq(schema.bookings.userId, parsedUser.data),
+        eq(schema.bookings.status, 'active' as const),
+      )
+    )
     .returning({ id: schema.bookings.id });
 
-  if (!r[0]) return res.status(404).json({ error: 'Booking not found or already cancelled' });
+  if (!r[0]) {
+    return res
+      .status(404)
+      .json({ error: 'Booking not found or already cancelled' });
+  }
+
   res.json({ ok: true });
 });
