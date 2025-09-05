@@ -1,7 +1,7 @@
 {
   "name": "kashiwa-parking-backend",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
