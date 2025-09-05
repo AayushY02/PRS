@@ -11,7 +11,14 @@ import { bookingsRouter } from './routes/bookings.routes';
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({ origin: ENV.CORS_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow no-origin (cURL/health checks) and explicit matches
+    if (!origin || ENV.CORS_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 
 app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }));
 
