@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Button } from './components/ui/button';
+
 import { Separator } from './components/ui/separator';
 import { ParkingCircle, User } from 'lucide-react';
 import { useEffect } from 'react';
@@ -7,6 +7,7 @@ import useAuthBootstrap from './hooks/useAuthBootstrap';
 import { useAtom, useSetAtom } from 'jotai';
 import { api } from './lib/api';
 import { authAtom } from './state/auth';
+import { Button } from '@/components/ui/button';
 
 export default function App() {
   useAuthBootstrap();
