@@ -66,7 +66,7 @@ export const authRouter = Router();
 const setCookie = (res: any, token: string) => {
   res.cookie(ENV.COOKIE_NAME, token, {
     httpOnly: true,
-    secure: true,
+    secure: ENV.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 1000 // << 1 hour in ms
