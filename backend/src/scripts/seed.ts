@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { db, schema } from '../src/db';
+import { db, schema } from '../db';
 import { eq } from 'drizzle-orm';
 
 async function run() {

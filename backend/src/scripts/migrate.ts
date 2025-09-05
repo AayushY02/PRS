@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { neon } from '@neondatabase/serverless';
 import 'dotenv/config';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+const root = fileURLToPath(new URL(__dirname , '..'));
 const neonSql = neon(process.env.DATABASE_URL!);
 
 // Split SQL into statements by semicolons not inside strings/comments/dollar-quoted bodies.
