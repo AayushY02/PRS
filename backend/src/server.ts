@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import { ENV } from './env';
+import { ENV } from './env.js';
 import { authRouter } from './routes/auth.routes';
 import { regionsRouter } from './routes/regions.routes';
 import { subareasRouter } from './routes/subareas.routes';
