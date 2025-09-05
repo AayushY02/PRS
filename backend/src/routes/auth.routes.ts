@@ -63,11 +63,13 @@ import { eq } from 'drizzle-orm';   // << add this
 
 export const authRouter = Router();
 
+const isProd = ENV.NODE_ENV === 'production';
+
 const setCookie = (res: any, token: string) => {
   res.cookie(ENV.COOKIE_NAME, token, {
     httpOnly: true,
-    secure: ENV.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
     maxAge: 60 * 60 * 1000 // << 1 hour in ms
   });
