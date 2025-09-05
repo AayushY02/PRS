@@ -1,87 +1,20 @@
-// import { useState } from 'react';
-// import { formatISO, addHours } from 'date-fns';
-// import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
-// import { Label } from './ui/label';
-// import { Input } from './ui/input';
-// import { Textarea } from './ui/textarea';
-// import { Button } from './ui/button';
-// import { api } from '../lib/api';
-
-
-
-
-// type Props = {
-//   open: boolean;
-//   onOpenChange: (v: boolean) => void;
-//   spotId: string;
-//   spotCode: string;
-//   onSuccess: () => void;
-// };
-
-// export default function SpotBookingSheet({ open, onOpenChange, spotId, spotCode, onSuccess }: Props) {
-//   const now = new Date();
-//   const [start, setStart] = useState(formatISO(now).slice(0,16));
-//   const [end, setEnd] = useState(formatISO(addHours(now, 1)).slice(0,16));
-//   const [comment, setComment] = useState('');
-//   const [busy, setBusy] = useState(false);
-//   const [error, setError] = useState<string | null>(null);
-
-//   const handleComplete = async () => {
-//     setBusy(true); setError(null);
-//     try {
-//       await api.post('/api/bookings', {
-//         spotId,
-//         startTime: new Date(start).toISOString(),
-//         endTime: new Date(end).toISOString(),
-//         comment
-//       });
-//       onOpenChange(false);
-//       onSuccess();
-//     } catch (e: any) {
-//       setError(e?.response?.data?.error || 'Failed to book');
-//     } finally { setBusy(false); }
-//   };
-
-//   const clearComment = () => setComment('');
-
-//   return (
-//     <Sheet open={open} onOpenChange={onOpenChange}>
-//       <SheetContent side="bottom" className="max-w-md mx-auto p-4">
-//         <SheetHeader>
-//           <SheetTitle>Reserve spot {spotCode}</SheetTitle>
-//           <SheetDescription>Choose timeframe and optional comment.</SheetDescription>
-//         </SheetHeader>
-
-//         <div className="mt-4 space-y-3">
-//           <div className="grid gap-2">
-//             <Label>Start</Label>
-//             <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
-//           </div>
-//           <div className="grid gap-2">
-//             <Label>End</Label>
-//             <Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
-//           </div>
-//           <div className="grid gap-2">
-//             <Label>Comment</Label>
-//             <Textarea placeholder="Optional…" value={comment} onChange={(e) => setComment(e.target.value)} />
-//           </div>
-//           {error && <div className="text-red-600 text-sm">{error}</div>}
-
-//           <div className="flex gap-2 pt-2">
-//             <Button className="flex-1" disabled={busy} onClick={handleComplete}>Complete</Button>
-//             <Button variant="secondary" onClick={clearComment} disabled={busy}>Delete</Button>
-//           </div>
-//         </div>
-//       </SheetContent>
-//     </Sheet>
-//   );
-// }
-
 import { useEffect, useMemo, useState } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { api } from '../lib/api';
+import { Badge } from './ui/badge';
+import { Card } from './ui/card';
+import { Separator } from './ui/separator';
+import {
+  Clock,
+  Play,
+  StopCircle,
+  NotebookPen,
+  Info,
+  Car,
+  Copy,
+} from 'lucide-react';
 
 type Props = {
   open: boolean;
@@ -100,9 +33,11 @@ function useTicker(activeSince?: string | null) {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [activeSince]);
+
   return useMemo(() => {
     if (!activeSince) return null;
     const ms = Date.now() - new Date(activeSince).getTime();
+    if (ms < 0 || Number.isNaN(ms)) return null;
     const s = Math.floor(ms / 1000);
     const hh = Math.floor(s / 3600).toString().padStart(2, '0');
     const mm = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
@@ -111,10 +46,23 @@ function useTicker(activeSince?: string | null) {
   }, [now, activeSince]);
 }
 
-export default function SpotBookingSheet({ open, onOpenChange, spotId, spotCode, onSuccess, myStartTime }: Props) {
+const NOTE_LIMIT = 140;
+const QUICK_NOTES = ['Visitor parking', 'Near elevator', 'EV charging', 'Short stop'];
+
+export default function SpotBookingSheet({
+  open,
+  onOpenChange,
+  spotId,
+  spotCode,
+  onSuccess,
+  myStartTime,
+}: Props) {
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState<null | 'start' | 'end'>(null);
   const elapsed = useTicker(myStartTime ?? null);
+
+  const remaining = Math.max(0, NOTE_LIMIT - comment.length);
+  const isActive = !!myStartTime;
 
   useEffect(() => {
     if (!open) {
@@ -126,7 +74,7 @@ export default function SpotBookingSheet({ open, onOpenChange, spotId, spotCode,
   async function startBooking() {
     setSubmitting('start');
     try {
-      await api.post('/api/bookings/start', { spotId, comment: comment || null });
+      await api.post('/api/bookings/start', { spotId, comment: comment.trim() || null });
       onSuccess();
       onOpenChange(false);
     } catch (e: any) {
@@ -137,6 +85,8 @@ export default function SpotBookingSheet({ open, onOpenChange, spotId, spotCode,
   }
 
   async function endBooking() {
+    const ok = window.confirm('End this booking now? The spot will become available for others.');
+    if (!ok) return;
     setSubmitting('end');
     try {
       await api.post('/api/bookings/end', { spotId });
@@ -149,47 +99,195 @@ export default function SpotBookingSheet({ open, onOpenChange, spotId, spotCode,
     }
   }
 
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(spotCode);
+    } catch {
+      // no-op
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-2xl max-h-[95vh] overflow-y-auto p-5 ">
-        <SheetHeader className="mb-2">
-          <SheetTitle className="text-lg">Spot {spotCode}</SheetTitle>
-          <SheetDescription>
-            {myStartTime ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Your booking is active · <span className="font-mono">{elapsed ?? '—:—:—'}</span>
-              </span>
-            ) : (
-              'Start a new booking or leave a note.'
-            )}
-          </SheetDescription>
-        </SheetHeader>
+      <SheetContent
+        side="bottom"
+        className="rounded-t-2xl max-h-[95vh] overflow-y-auto p-0"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {/* Header */}
+        <div className="px-5 pt-4 pb-3 sticky top-0 bg-white border-b rounded-t-2xl">
+          <SheetHeader className="mb-1">
+            <SheetTitle className="text-lg flex items-center gap-2">
+              <Car className="h-5 w-5" />
+              Spot {spotCode}
+              <Badge
+                className="ml-1"
+                variant={isActive ? 'default' : 'secondary'}
+              >
+                {isActive ? 'Active' : 'Idle'}
+              </Badge>
+            </SheetTitle>
+            <SheetDescription>
+              {isActive ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Your booking is active
+                </span>
+              ) : (
+                'Start a new booking and (optionally) leave a note for yourself.'
+              )}
+            </SheetDescription>
+          </SheetHeader>
+        </div>
 
-        <div className="space-y-3">
-          <Textarea
-            placeholder="Note (optional)"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="rounded-xl"
-          />
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {/* Status card */}
+          <Card
+            className={[
+              'rounded-2xl border',
+              isActive
+                ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-500/0'
+                : 'bg-gradient-to-br from-sky-500/10 to-sky-500/0',
+            ].join(' ')}
+          >
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className={[
+                    'h-2.5 w-2.5 rounded-full',
+                    isActive ? 'bg-emerald-500' : 'bg-sky-500',
+                  ].join(' ')}
+                />
+                <div className="text-sm font-medium">
+                  {isActive ? 'Booking in progress' : 'Ready to start'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                {isActive ? 'Elapsed' : '—'}
+              </div>
+            </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={myStartTime ? 'secondary' : 'default'}
-              onClick={startBooking}
-              disabled={!!myStartTime || submitting !== null}
+            <Separator />
+
+            <div className="px-4 py-3">
+              <div className="font-mono text-2xl tracking-wide">
+                {isActive ? (elapsed ?? '00:00:00') : '00:00:00'}
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                {isActive
+                  ? 'Time since you started this booking.'
+                  : 'You can start and end the booking any time.'}
+              </div>
+            </div>
+          </Card>
+
+          {/* Quick info */}
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Info className="h-4 w-4 mt-0.5" />
+            <div>
+              Ending a booking immediately frees the spot for others. Notes are private to you.
+            </div>
+          </div>
+
+          {/* Note input */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium flex items-center gap-2">
+                <NotebookPen className="h-4 w-4" />
+                Note (optional)
+              </div>
+              <div
+                className={[
+                  'text-xs font-mono',
+                  remaining < 10 ? 'text-red-600' : 'text-muted-foreground',
+                ].join(' ')}
+              >
+                {remaining}
+              </div>
+            </div>
+            <Textarea
+              placeholder="e.g., EV charging; back in 30m…"
+              value={comment}
+              onChange={(e) => {
+                const v = e.target.value.slice(0, NOTE_LIMIT);
+                setComment(v);
+              }}
               className="rounded-xl"
+              rows={3}
+            />
+
+            {/* Quick note chips */}
+            <div className="flex flex-wrap gap-2">
+              {QUICK_NOTES.map((q) => (
+                <Button
+                  key={q}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full h-7"
+                  onClick={() => setComment((prev) => {
+                    if (!prev) return q;
+                    if (prev.includes(q)) return prev;
+                    const sep = prev.trim().endsWith('.') ? ' ' : (prev.endsWith(' ') ? '' : ' ');
+                    return (prev + sep + q).slice(0, NOTE_LIMIT);
+                  })}
+                >
+                  + {q}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Button
+              variant={isActive ? 'secondary' : 'default'}
+              onClick={startBooking}
+              disabled={isActive || submitting !== null}
+              className="rounded-xl h-11"
             >
-              {submitting === 'start' ? 'Starting…' : 'Start'}
+              {submitting === 'start' ? 'Starting…' : (
+                <span className="inline-flex items-center gap-2">
+                  <Play className="h-4 w-4" /> Start
+                </span>
+              )}
             </Button>
+
             <Button
               variant="destructive"
               onClick={endBooking}
-              disabled={!myStartTime || submitting !== null}
-              className="rounded-xl"
+              disabled={!isActive || submitting !== null}
+              className="rounded-xl h-11"
             >
-              {submitting === 'end' ? 'Ending…' : 'End'}
+              {submitting === 'end' ? 'Ending…' : (
+                <span className="inline-flex items-center gap-2">
+                  <StopCircle className="h-4 w-4" /> End
+                </span>
+              )}
+            </Button>
+          </div>
+
+          {/* Utilities */}
+          <div className="flex items-center justify-between pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={copyCode}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy spot code
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => onOpenChange(false)}
+            >
+              Close
             </Button>
           </div>
         </div>
