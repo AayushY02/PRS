@@ -13,13 +13,18 @@ import {
   CheckCircle2,
   XCircle,
   History as HistoryIcon,
+  Car,
 } from 'lucide-react';
+
+type Vehicle = 'normal' | 'large' | 'other';
 
 type RawBooking = {
   id: string;
-  spot_id: string;
-  time_range: string; // e.g. '[2025-09-05 00:00:00+00,2025-09-05 01:00:00+00)' or '[2025-09-05 00:00:00+00,)'
+  sub_spot_id: string;
+  sub_spot_code: string;      // <-- joined in /api/bookings/mine
+  time_range: string;         // e.g. '[2025-09-05 00:00:00+00,2025-09-05 01:00:00+00)' or '[2025-09-05 00:00:00+00,)'
   comment: string | null;
+  vehicle_type: Vehicle;       // <-- new
   status: 'active' | 'completed' | 'cancelled';
   created_at: string;
 };
@@ -35,7 +40,6 @@ type ParsedBooking = RawBooking & {
 
 function parseRange(r: string): { start: Date; end: Date | null } {
   // Handles Postgres tstzrange textual output, including unbounded end: '[start,)'.
-  // Accepts any whitespace, timezone, etc.
   const m = r.match(/^\s*\[([^,]+)\s*,\s*(.*?)\)\s*$/);
   if (!m) return { start: new Date(NaN), end: null };
   const start = new Date(m[1]);
@@ -57,6 +61,10 @@ function fmtDate(d: Date | null) {
   return d.toLocaleString();
 }
 
+function vehicleLabel(v: Vehicle) {
+  return v === 'normal' ? '普通自動車' : v === 'large' ? '大型自動車' : 'その他';
+}
+
 function computeDerived(b: RawBooking): ParsedBooking {
   const { start, end } = parseRange(b.time_range);
   const now = new Date();
@@ -71,7 +79,6 @@ function computeDerived(b: RawBooking): ParsedBooking {
   } else if (now < start) {
     derived = 'scheduled';
   } else if (!end || now < end) {
-    // open-ended or still within [start, end)
     derived = 'active';
   }
 
@@ -124,7 +131,6 @@ export default function MyBookings() {
   });
 
   const raw: RawBooking[] = (data?.bookings ?? []) as RawBooking[];
-
   const bookings = useMemo(() => raw.map(computeDerived), [raw]);
 
   // Group/sort
@@ -144,9 +150,9 @@ export default function MyBookings() {
     [bookings]
   );
 
-  // Mutations
+  // Mutations (now use subSpotId)
   const endOne = useMutation({
-    mutationFn: async (spotId: string) => api.post('/api/bookings/end', { spotId }),
+    mutationFn: async (subSpotId: string) => api.post('/api/bookings/end', { subSpotId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-bookings'] });
       qc.invalidateQueries({ queryKey: ['spots'] });
@@ -154,8 +160,8 @@ export default function MyBookings() {
   });
 
   const endAll = useMutation({
-    mutationFn: async (spotIds: string[]) =>
-      Promise.all(spotIds.map(id => api.post('/api/bookings/end', { spotId: id }))),
+    mutationFn: async (ids: string[]) =>
+      Promise.all(ids.map(id => api.post('/api/bookings/end', { subSpotId: id }))),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-bookings'] });
       qc.invalidateQueries({ queryKey: ['spots'] });
@@ -165,204 +171,6 @@ export default function MyBookings() {
   const hasActive = active.length > 0;
 
   return (
-    // <>
-    //   <TopTitle
-    //     title="My bookings"
-    //     subtitle={[
-    //       hasActive ? `${active.length} active` : 'No active bookings',
-    //       history.length ? `· ${history.length} past` : null,
-    //     ].filter(Boolean).join(' ')}
-    //   />
-
-    //   {/* Top actions / stats */}
-    //   <div className="mb-3 flex items-center gap-2">
-    //     <Button
-    //       size="sm"
-    //       variant="outline"
-    //       onClick={() => qc.invalidateQueries({ queryKey: ['my-bookings'] })}
-    //     >
-    //       Refresh
-    //     </Button>
-    //     <Button
-    //       size="sm"
-    //       variant="destructive"
-    //       className="rounded-xl"
-    //       onClick={() => {
-    //         if (!hasActive) return;
-    //         const ids = active.map(b => b.spot_id);
-    //         const ok = window.confirm(`End ${ids.length} active booking(s) now?`);
-    //         if (ok) endAll.mutate(ids);
-    //       }}
-    //       disabled={!hasActive || endAll.isPending}
-    //     >
-    //       {endAll.isPending ? 'Ending…' : `End all active (${active.length})`}
-    //     </Button>
-    //   </div>
-
-    //   {/* Loading state */}
-    //   {isLoading && (
-    //     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    //       {Array.from({ length: 4 }).map((_, i) => <BookingSkeleton key={i} />)}
-    //     </div>
-    //   )}
-
-    //   {/* Empty state */}
-    //   {!isLoading && bookings.length === 0 && (
-    //     <Card className="rounded-2xl p-6 text-sm text-muted-foreground">
-    //       You have no bookings yet.
-    //     </Card>
-    //   )}
-
-    //   {/* Active section */}
-    //   {active.length > 0 && (
-    //     <>
-    //       <div className="mb-1 flex items-center gap-2">
-    //         <Timer className="h-4 w-4" />
-    //         <div className="text-sm font-semibold">Active</div>
-    //         <Badge variant="secondary">{active.length}</Badge>
-    //       </div>
-    //       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-    //         {active.map(b => {
-    //           const elapsed = hhmmss(b.durationSecNow);
-    //           const hasPlannedEnd = typeof b.totalPlannedSec === 'number' && b.totalPlannedSec! > 0;
-    //           const remaining = hasPlannedEnd ? Math.max(0, b.remainingSec ?? 0) : null;
-    //           const pct = hasPlannedEnd
-    //             ? Math.min(100, Math.max(0, (b.durationSecNow / (b.totalPlannedSec as number)) * 100))
-    //             : null;
-
-    //           return (
-    //             <Card key={b.id} className="rounded-2xl p-4 border bg-gradient-to-br from-emerald-500/10 to-emerald-500/0">
-    //               <div className="flex items-start justify-between gap-3">
-    //                 <div>
-    //                   <div className="text-base font-semibold">
-    //                     Spot {b.spot_id.slice(0, 8)}…
-    //                   </div>
-    //                   <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-    //                     <Clock className="h-3.5 w-3.5" />
-    //                     <span>Start: {fmtDate(b.start)}</span>
-    //                   </div>
-    //                 </div>
-    //                 <Badge className="gap-1">
-    //                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-    //                   Active
-    //                 </Badge>
-    //               </div>
-
-    //               <div className="mt-3 flex items-center justify-between text-xs">
-    //                 <span className="inline-flex items-center gap-1 font-mono">
-    //                   <Timer className="h-3.5 w-3.5" /> {elapsed}
-    //                 </span>
-    //                 {hasPlannedEnd ? (
-    //                   <span className="inline-flex items-center gap-1">
-    //                     Ends in <span className="font-mono">{hhmmss(remaining!)}</span>
-    //                   </span>
-    //                 ) : (
-    //                   <span className="text-muted-foreground">Open-ended</span>
-    //                 )}
-    //               </div>
-
-    //               {/* Progress bar when end is planned */}
-    //               {hasPlannedEnd && (
-    //                 <div className="mt-2 h-2 w-full rounded-full bg-emerald-500/15 overflow-hidden">
-    //                   <div
-    //                     className="h-full bg-emerald-500 transition-[width]"
-    //                     style={{ width: `${pct}%` }}
-    //                   />
-    //                 </div>
-    //               )}
-
-    //               {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
-
-    //               <div className="mt-3 flex justify-end">
-    //                 <Button
-    //                   size="sm"
-    //                   variant="destructive"
-    //                   className="rounded-xl"
-    //                   onClick={() => {
-    //                     const ok = window.confirm('End this booking now?');
-    //                     if (ok) endOne.mutate(b.spot_id);
-    //                   }}
-    //                   disabled={endOne.isPending}
-    //                 >
-    //                   {endOne.isPending ? 'Ending…' : (
-    //                     <span className="inline-flex items-center gap-1">
-    //                       <StopCircle className="h-4 w-4" /> End now
-    //                     </span>
-    //                   )}
-    //                 </Button>
-    //               </div>
-    //             </Card>
-    //           );
-    //         })}
-    //       </div>
-    //     </>
-    //   )}
-
-    //   {/* Upcoming section */}
-    //   {upcoming.length > 0 && (
-    //     <>
-    //       <div className="mb-1 flex items-center gap-2">
-    //         <Clock className="h-4 w-4" />
-    //         <div className="text-sm font-semibold">Scheduled</div>
-    //         <Badge variant="secondary">{upcoming.length}</Badge>
-    //       </div>
-    //       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-    //         {upcoming.map(b => (
-    //           <Card key={b.id} className="rounded-2xl p-4">
-    //             <div className="flex items-start justify-between">
-    //               <div className="text-base font-semibold">Spot {b.spot_id.slice(0, 8)}…</div>
-    //               <Badge variant="outline">Scheduled</Badge>
-    //             </div>
-    //             <div className="mt-1 text-xs text-muted-foreground">Starts: {fmtDate(b.start)}</div>
-    //             {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
-    //           </Card>
-    //         ))}
-    //       </div>
-    //     </>
-    //   )}
-
-    //   {/* History section */}
-    //   {history.length > 0 && (
-    //     <>
-    //       <div className="mb-1 flex items-center gap-2">
-    //         <HistoryIcon className="h-4 w-4" />
-    //         <div className="text-sm font-semibold">History</div>
-    //         <Badge variant="secondary">{history.length}</Badge>
-    //       </div>
-    //       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    //         {history.map(b => {
-    //           const totalSec =
-    //             b.end ? (b.end.getTime() - b.start.getTime()) / 1000 : b.durationSecNow;
-    //           const isCancelled = b.derivedStatus === 'cancelled';
-    //           return (
-    //             <Card
-    //               key={b.id}
-    //               className={[
-    //                 'rounded-2xl p-4',
-    //                 isCancelled ? 'bg-gradient-to-br from-red-500/10 to-red-500/0' : 'bg-gradient-to-br from-zinc-500/10 to-zinc-500/0',
-    //               ].join(' ')}
-    //             >
-    //               <div className="flex items-start justify-between">
-    //                 <div className="text-base font-semibold">Spot {b.spot_id.slice(0, 8)}…</div>
-    //                 <Badge variant={isCancelled ? 'destructive' : 'secondary'} className="gap-1">
-    //                   {isCancelled ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-    //                   {isCancelled ? 'Cancelled' : 'Completed'}
-    //                 </Badge>
-    //               </div>
-    //               <div className="mt-1 text-xs text-muted-foreground">Start: {fmtDate(b.start)}</div>
-    //               <div className="text-xs text-muted-foreground">End: {fmtDate(b.end)}</div>
-    //               <div className="mt-2 text-xs">
-    //                 ⏱️ Duration: <span className="font-mono">{hhmmss(totalSec)}</span>
-    //               </div>
-    //               {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
-    //             </Card>
-    //           );
-    //         })}
-    //       </div>
-    //     </>
-    //   )}
-    // </>
-
     <>
       <TopTitle
         title="予約一覧"
@@ -387,7 +195,7 @@ export default function MyBookings() {
           className="rounded-xl"
           onClick={() => {
             if (!hasActive) return;
-            const ids = active.map(b => b.spot_id);
+            const ids = active.map(b => b.sub_spot_id);
             const ok = window.confirm(`${ids.length} 件のアクティブ予約を終了しますか？`);
             if (ok) endAll.mutate(ids);
           }}
@@ -411,7 +219,7 @@ export default function MyBookings() {
         </Card>
       )}
 
-      {/* Active section */}
+      {/* Active */}
       {active.length > 0 && (
         <>
           <div className="mb-1 flex items-center gap-2">
@@ -433,11 +241,15 @@ export default function MyBookings() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-base font-semibold">
-                        スポット {b.spot_id.slice(0, 8)}…
+                        サブスポット {b.sub_spot_code}
                       </div>
                       <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" />
                         <span>開始: {fmtDate(b.start)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Car className="h-3.5 w-3.5" />
+                        <span>{vehicleLabel(b.vehicle_type)}</span>
                       </div>
                     </div>
                     <Badge className="gap-1">
@@ -459,7 +271,6 @@ export default function MyBookings() {
                     )}
                   </div>
 
-                  {/* Progress bar when end is planned */}
                   {hasPlannedEnd && (
                     <div className="mt-2 h-2 w-full rounded-full bg-emerald-500/15 overflow-hidden">
                       <div
@@ -478,7 +289,7 @@ export default function MyBookings() {
                       className="rounded-xl"
                       onClick={() => {
                         const ok = window.confirm('この予約を今すぐ終了しますか？');
-                        if (ok) endOne.mutate(b.spot_id);
+                        if (ok) endOne.mutate(b.sub_spot_id);
                       }}
                       disabled={endOne.isPending}
                     >
@@ -496,7 +307,7 @@ export default function MyBookings() {
         </>
       )}
 
-      {/* Upcoming section */}
+      {/* Upcoming */}
       {upcoming.length > 0 && (
         <>
           <div className="mb-1 flex items-center gap-2">
@@ -508,10 +319,14 @@ export default function MyBookings() {
             {upcoming.map(b => (
               <Card key={b.id} className="rounded-2xl p-4">
                 <div className="flex items-start justify-between">
-                  <div className="text-base font-semibold">スポット {b.spot_id.slice(0, 8)}…</div>
+                  <div className="text-base font-semibold">サブスポット {b.sub_spot_code}</div>
                   <Badge variant="outline">予定</Badge>
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">開始予定: {fmtDate(b.start)}</div>
+                <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                  <Car className="h-3.5 w-3.5" />
+                  {vehicleLabel(b.vehicle_type)}
+                </div>
                 {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
               </Card>
             ))}
@@ -519,7 +334,7 @@ export default function MyBookings() {
         </>
       )}
 
-      {/* History section */}
+      {/* History */}
       {history.length > 0 && (
         <>
           <div className="mb-1 flex items-center gap-2">
@@ -541,7 +356,7 @@ export default function MyBookings() {
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="text-base font-semibold">スポット {b.spot_id.slice(0, 8)}…</div>
+                    <div className="text-base font-semibold">サブスポット {b.sub_spot_code}</div>
                     <Badge variant={isCancelled ? 'destructive' : 'secondary'} className="gap-1">
                       {isCancelled ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                       {isCancelled ? 'キャンセル済み' : '完了'}
@@ -551,6 +366,10 @@ export default function MyBookings() {
                   <div className="text-xs text-muted-foreground">終了: {fmtDate(b.end)}</div>
                   <div className="mt-2 text-xs">
                     ⏱️ 利用時間: <span className="font-mono">{hhmmss(totalSec)}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    <Car className="h-3.5 w-3.5" />
+                    {vehicleLabel(b.vehicle_type)}
                   </div>
                   {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
                 </Card>

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS spots (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Bookings: use tstzrange to represent [start, end)
+Bookings: use tstzrange to represent [start, end)
 CREATE TABLE IF NOT EXISTS bookings (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
+
 -- Prevent overlapping active bookings per spot:
 -- two ranges overlap if && is true. We exclude overlap when status = 'active'.
 CREATE INDEX IF NOT EXISTS bookings_spot_status_idx ON bookings (spot_id, status);
@@ -58,3 +60,5 @@ ALTER TABLE bookings
     spot_id WITH =,
     time_range WITH &&
   ) WHERE (status = 'active');
+
+

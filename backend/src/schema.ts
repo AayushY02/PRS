@@ -1,11 +1,15 @@
 // backend/src/schema.ts
-import { pgTable, text, timestamp, uuid, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
+import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, integer, unique, customType } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 // We keep tstzrange as a raw SQL data type. We'll use raw SQL in queries when needed.
-const tstzrange = {
-  dataType: () => 'tstzrange' as const,
-};
+const tstzrange = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'tstzrange';
+  },
+});
+export const vehicleTypeEnum = pgEnum('vehicle_type', ['normal', 'large', 'other']);
+
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -56,26 +60,40 @@ export const spots = pgTable(
   }),
 );
 
+
+export const subSpots = pgTable('sub_spots', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  spotId: uuid('spot_id').notNull().references(() => spots.id, { onDelete: 'cascade' }),
+  code: varchar('code', { length: 64 }).notNull(),         // e.g., S-12-A / “01-3”
+  idx: integer('idx').notNull(),                           // 1..N (order inside spot)
+}, (t) => ({
+  uniqPerSpot: unique().on(t.spotId, t.idx),
+  uniqCode: unique().on(t.code),
+}));
+
+
 // Keep status as text ('active' | 'cancelled'); the EXCLUDE overlap constraint
 // is added via SQL migration (0002_constraints.sql).
-export const bookings = pgTable(
-  'bookings',
-  {
-    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    spotId: uuid('spot_id')
-      .notNull()
-      .references(() => spots.id, { onDelete: 'cascade' }),
-    // Stored as tstzrange; we write/read via raw SQL in routes.
-    timeRange: text('time_range').notNull(),
-    comment: text('comment'),
-    status: text('status').notNull().default('active'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => ({
-    // regular (non-unique) index is fine here
-    spotStatusIdx: index('bookings_spot_status_idx').on(t.spotId, t.status),
-  }),
-);
+export const bookings = pgTable('bookings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // CHANGED: link to sub-spot instead of “spot”
+  subSpotId: uuid('sub_spot_id').notNull().references(() => subSpots.id, { onDelete: 'cascade' }),
+
+  // time range: [start, end) — end open while active; you already use tstzrange in UI
+  // timeRange: ("time_range").notNull(),
+  timeRange: tstzrange('time_range').notNull(),
+  status: varchar('status', { length: 16 }).notNull().default('active'),
+  comment: text('comment'),
+
+  // NEW:
+  vehicleType: vehicleTypeEnum('vehicle_type').notNull().default('normal'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+
+export const subSpotsRelations = relations(subSpots, ({ one, many }) => ({
+  spot: one(spots, { fields: [subSpots.spotId], references: [spots.id] }),
+  bookings: many(bookings),
+}));
