@@ -40,7 +40,7 @@ export default function Login() {
       });
       nav('/');
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Login failed');
+      setError(e?.response?.data?.error || 'ログインに失敗しました');
     } finally {
       setBusy(false);
     }
@@ -58,18 +58,18 @@ export default function Login() {
 
   return (
     <>
-      <TopTitle title="Welcome back" subtitle="Sign in to reserve parking" />
+      <TopTitle title="おかえりなさい" subtitle="駐車予約のためにログインしてください" />
 
       <Card className="rounded-2xl max-w-md w-full mx-auto shadow-sm border">
         <CardHeader>
-          <CardTitle className="text-lg">Login</CardTitle>
+          <CardTitle className="text-lg">ログイン</CardTitle>
         </CardHeader>
 
         <CardContent>
           <form className="space-y-4" onSubmit={submit} noValidate>
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">メールアドレス</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -85,20 +85,20 @@ export default function Login() {
                 />
               </div>
               {!emailValid && email.length > 0 && (
-                <p className="text-xs text-red-600">Please enter a valid email.</p>
+                <p className="text-xs text-red-600">有効なメールアドレスを入力してください。</p>
               )}
             </div>
 
             {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">パスワード</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPwd ? 'text' : 'password'}
                   autoComplete="current-password"
-                  placeholder="Your password"
+                  placeholder="パスワードを入力"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyUp={onKeyPressCheckCaps}
@@ -109,12 +109,12 @@ export default function Login() {
                   type="button"
                   onClick={() => setShowPwd((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPwd ? 'Hide password' : 'Show password'}
+                  aria-label={showPwd ? 'パスワードを隠す' : 'パスワードを表示'}
                 >
                   {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {capsOn && <p className="text-xs text-amber-600">Caps Lock is on.</p>}
+              {capsOn && <p className="text-xs text-amber-600">Caps Lock がオンになっています。</p>}
             </div>
 
             {/* Error */}
@@ -130,14 +130,14 @@ export default function Login() {
             {/* Submit */}
             <Button className="w-full rounded-xl" disabled={!canSubmit}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign in
+              ログイン
             </Button>
           </form>
 
           <p className="text-xs text-center mt-4 text-muted-foreground">
-            No account?{' '}
+            アカウントをお持ちではありませんか？{' '}
             <Link className="underline underline-offset-2 hover:text-foreground" to="/signup">
-              Create one
+              新規登録
             </Link>
           </p>
         </CardContent>

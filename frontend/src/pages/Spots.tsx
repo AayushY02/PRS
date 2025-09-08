@@ -901,77 +901,246 @@ export default function Spots() {
   }, [styleReady, previewFC]);
 
   return (
-    <>
-      <TopTitle title="Spots" subtitle={`${counts.mine} mine · ${counts.busy}/${counts.total} in use`} />
+    // <>
+    //   <TopTitle title="Spots" subtitle={`${counts.mine} mine · ${counts.busy}/${counts.total} in use`} />
 
-      {/* Map preview — fixed height so it always renders */}
+    //   {/* Map preview — fixed height so it always renders */}
+    //   <div className="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden border mb-4 z-0">
+    //     <div ref={mapElRef} className="absolute inset-0 z-0 h-64 w-full" />
+    //     {/* Legend */}
+    //     <div className="absolute left-3 bottom-3 flex items-center gap-2 bg-background/80 border rounded-xl px-3 py-2 text-xs">
+    //       <span className="inline-flex items-center gap-1">
+    //         <span className="inline-block h-2 w-2 rounded bg-emerald-500" /> Mine
+    //       </span>
+    //       <span className="inline-flex items-center gap-1">
+    //         <span className="inline-block h-2 w-2 rounded bg-zinc-400" /> Booked
+    //       </span>
+    //       <span className="inline-flex items-center gap-1">
+    //         <span className="inline-block h-2 w-2 rounded bg-sky-400" /> Available
+    //       </span>
+    //     </div>
+    //   </div>
+
+    //   {/* Compact stat pills */}
+
+    //   <div className="mb-4 grid grid-cols-3 gap-2">
+    //     {/* Total */}
+    //     <Card className="rounded-xl shadow-sm bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border border-blue-200 dark:border-blue-800">
+    //       <CardContent className="flex flex-col items-center justify-center py-2 px-2">
+    //         <div className="h-7 w-7 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1">
+    //           <Car className="h-4 w-4" />
+    //         </div>
+    //         <div className="text-base font-semibold tabular-nums leading-none">{counts.total}</div>
+    //         <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Total</div>
+    //       </CardContent>
+    //     </Card>
+
+    //     {/* Mine */}
+    //     <Card className="rounded-xl shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border border-emerald-200 dark:border-emerald-800">
+    //       <CardContent className="flex flex-col items-center justify-center py-2 px-2">
+    //         <div className="h-7 w-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1">
+    //           <CheckCircle2 className="h-4 w-4" />
+    //         </div>
+    //         <div className="text-base font-semibold tabular-nums leading-none">{counts.mine}</div>
+    //         <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">Mine</div>
+    //       </CardContent>
+    //     </Card>
+
+    //     {/* Available */}
+    //     <Card className="rounded-xl shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800">
+    //       <CardContent className="flex flex-col items-center justify-center py-2 px-2">
+    //         <div className="h-7 w-7 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-1">
+    //           <MinusCircle className="h-4 w-4" />
+    //         </div>
+    //         <div className="text-base font-semibold tabular-nums leading-none">{counts.available}</div>
+    //         <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">Available</div>
+    //       </CardContent>
+    //     </Card>
+    //   </div>
+
+    //   {/* Filters */}
+    //   <div className="mb-4 flex items-center gap-2">
+    //     <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('all')}>All</Button>
+    //     <Button size="sm" variant={filter === 'available' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('available')}>Available</Button>
+    //     <Button size="sm" variant={filter === 'mine' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('mine')}>Mine</Button>
+    //   </div>
+
+    //   {/* Two-column grid */}
+    //   {isLoading ? (
+    //     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    //       {Array.from({ length: 6 }).map((_, i) => <SpotSkeleton key={i} />)}
+    //     </div>
+    //   ) : filtered.length === 0 ? (
+    //     <Card className="rounded-2xl p-6 text-sm text-muted-foreground">No spots found for this filter.</Card>
+    //   ) : (
+    //     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    //       {filtered.map((s, idx) => {
+    //         const isMine = s.isMineNow;
+    //         const isBusy = s.isBusyNow;
+    //         const accent =
+    //           isMine ? 'from-emerald-500/15 to-emerald-500/0 border-emerald-500/30'
+    //             : isBusy ? 'from-zinc-500/10 to-zinc-500/0 border-zinc-500/20'
+    //               : 'from-sky-500/15 to-sky-500/0 border-sky-500/30';
+
+    //         const elapsed = isMine ? formatElapsed(s.myStartTime) : null;
+
+    //         return (
+    //           <motion.div key={s.id} layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.2, delay: idx * 0.015 }}>
+    //             <Card className={['relative rounded-2xl px-4 py-3 border', 'hover:shadow-md transition', 'bg-gradient-to-br', accent, 'group'].join(' ')}>
+    //               <div className={['absolute left-0 top-0 h-full w-1.5 rounded-l-2xl', isMine ? 'bg-emerald-500' : isBusy ? 'bg-zinc-400' : 'bg-sky-500'].join(' ')} />
+    //               <div className="flex items-start justify-between gap-3 pl-2">
+    //                 <div className="min-w-0">
+    //                   <div className="text-base font-semibold truncate">{s.code}</div>
+    //                   <div className="mt-1 flex items-center gap-2">
+    //                     {isMine ? (
+    //                       <>
+    //                         <Badge className="gap-1" variant="default">
+    //                           <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+    //                           My booking
+    //                         </Badge>
+    //                         {elapsed && (
+    //                           <span className="inline-flex items-center text-xs text-muted-foreground gap-1 font-mono">
+    //                             <Clock className="h-3 w-3" /> {elapsed}
+    //                           </span>
+    //                         )}
+    //                       </>
+    //                     ) : isBusy ? (
+    //                       <Badge variant="secondary">Booked</Badge>
+    //                     ) : (
+    //                       <Badge variant="outline">Available</Badge>
+    //                     )}
+    //                   </div>
+    //                 </div>
+    //                 <Button
+    //                   variant={isMine ? 'default' : isBusy ? 'outline' : 'default'}
+    //                   className="rounded-xl"
+    //                   onClick={() => openSheet(s)}
+    //                 >
+    //                   {isMine ? 'Manage' : isBusy ? 'Details' : 'Book'}
+    //                 </Button>
+    //               </div>
+    //               <button onClick={() => openSheet(s)} className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/40" aria-label={`Open ${s.code}`} style={{ pointerEvents: 'none' }} />
+    //             </Card>
+    //           </motion.div>
+    //         );
+    //       })}
+    //     </div>
+    //   )}
+
+    //   {chosen && (
+    //     <SpotBookingSheet
+    //       open={open}
+    //       onOpenChange={(v) => { if (!v) closeSheet(); else setOpen(true); }}
+    //       spotId={chosen.id}
+    //       spotCode={chosen.code}
+    //       myStartTime={chosen.myStartTime ?? undefined}
+    //       onSuccess={async () => {
+    //         // 1) Optimistic map tint (instant feedback)
+    //         const map = mapRef.current;
+    //         if (map && chosen) {
+    //           const nextState =
+    //             chosen.isMineNow ? 'available' // you ended your booking
+    //               : chosen.isBusyNow ? 'busy'     // details viewed — likely unchanged
+    //                 : 'mine';                        // you just booked
+    //           map.setFeatureState?.({ source: SRC_ID, id: chosen.id } as any, { state: nextState });
+    //         }
+
+    //         // 2) Close sheet & refresh queries immediately
+    //         setChosen(null);
+    //         closeSheet();
+
+    //         // Mark cache stale AND force an active refetch now
+    //         qc.invalidateQueries({ queryKey: ['spots', subareaId] });
+    //         qc.refetchQueries({ queryKey: ['spots', subareaId], type: 'active' });
+
+    //         // Also refresh my bookings
+    //         qc.invalidateQueries({ queryKey: ['my-bookings'] });
+    //       }}
+    //     />
+    //   )}
+    // </>
+
+    <>
+      <TopTitle
+        title="駐車スペース"
+        subtitle={`自分: ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`}
+      />
+
+      {/* マッププレビュー */}
       <div className="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden border mb-4 z-0">
         <div ref={mapElRef} className="absolute inset-0 z-0 h-64 w-full" />
-        {/* Legend */}
+        {/* 凡例 */}
         <div className="absolute left-3 bottom-3 flex items-center gap-2 bg-background/80 border rounded-xl px-3 py-2 text-xs">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded bg-emerald-500" /> Mine
+            <span className="inline-block h-2 w-2 rounded bg-emerald-500" /> 自分
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded bg-zinc-400" /> Booked
+            <span className="inline-block h-2 w-2 rounded bg-zinc-400" /> 使用中
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded bg-sky-400" /> Available
+            <span className="inline-block h-2 w-2 rounded bg-sky-400" /> 空き
           </span>
         </div>
       </div>
 
-      {/* Compact stat pills */}
-
+      {/* ステータスカード */}
       <div className="mb-4 grid grid-cols-3 gap-2">
-        {/* Total */}
+        {/* 合計 */}
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border border-blue-200 dark:border-blue-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1">
               <Car className="h-4 w-4" />
             </div>
             <div className="text-base font-semibold tabular-nums leading-none">{counts.total}</div>
-            <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Total</div>
+            <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">合計</div>
           </CardContent>
         </Card>
 
-        {/* Mine */}
+        {/* 自分 */}
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border border-emerald-200 dark:border-emerald-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1">
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div className="text-base font-semibold tabular-nums leading-none">{counts.mine}</div>
-            <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">Mine</div>
+            <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">自分</div>
           </CardContent>
         </Card>
 
-        {/* Available */}
+        {/* 空き */}
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-1">
               <MinusCircle className="h-4 w-4" />
             </div>
             <div className="text-base font-semibold tabular-nums leading-none">{counts.available}</div>
-            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">Available</div>
+            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">空き</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* フィルター */}
       <div className="mb-4 flex items-center gap-2">
-        <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('all')}>All</Button>
-        <Button size="sm" variant={filter === 'available' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('available')}>Available</Button>
-        <Button size="sm" variant={filter === 'mine' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('mine')}>Mine</Button>
+        <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('all')}>
+          すべて
+        </Button>
+        <Button size="sm" variant={filter === 'available' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('available')}>
+          空き
+        </Button>
+        <Button size="sm" variant={filter === 'mine' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('mine')}>
+          自分
+        </Button>
       </div>
 
-      {/* Two-column grid */}
+      {/* 駐車スペースリスト */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {Array.from({ length: 6 }).map((_, i) => <SpotSkeleton key={i} />)}
         </div>
       ) : filtered.length === 0 ? (
-        <Card className="rounded-2xl p-6 text-sm text-muted-foreground">No spots found for this filter.</Card>
+        <Card className="rounded-2xl p-6 text-sm text-muted-foreground">
+          この条件に一致する駐車スペースはありません。
+        </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filtered.map((s, idx) => {
@@ -996,7 +1165,7 @@ export default function Spots() {
                           <>
                             <Badge className="gap-1" variant="default">
                               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              My booking
+                              自分の予約
                             </Badge>
                             {elapsed && (
                               <span className="inline-flex items-center text-xs text-muted-foreground gap-1 font-mono">
@@ -1005,9 +1174,9 @@ export default function Spots() {
                             )}
                           </>
                         ) : isBusy ? (
-                          <Badge variant="secondary">Booked</Badge>
+                          <Badge variant="secondary">使用中</Badge>
                         ) : (
-                          <Badge variant="outline">Available</Badge>
+                          <Badge variant="outline">空き</Badge>
                         )}
                       </div>
                     </div>
@@ -1016,10 +1185,15 @@ export default function Spots() {
                       className="rounded-xl"
                       onClick={() => openSheet(s)}
                     >
-                      {isMine ? 'Manage' : isBusy ? 'Details' : 'Book'}
+                      {isMine ? '管理' : isBusy ? '詳細' : '予約'}
                     </Button>
                   </div>
-                  <button onClick={() => openSheet(s)} className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/40" aria-label={`Open ${s.code}`} style={{ pointerEvents: 'none' }} />
+                  <button
+                    onClick={() => openSheet(s)}
+                    className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/40"
+                    aria-label={`「${s.code}」を開く`}
+                    style={{ pointerEvents: 'none' }}
+                  />
                 </Card>
               </motion.div>
             );
@@ -1035,25 +1209,21 @@ export default function Spots() {
           spotCode={chosen.code}
           myStartTime={chosen.myStartTime ?? undefined}
           onSuccess={async () => {
-            // 1) Optimistic map tint (instant feedback)
+            // マップ表示を即時更新
             const map = mapRef.current;
             if (map && chosen) {
               const nextState =
-                chosen.isMineNow ? 'available' // you ended your booking
-                  : chosen.isBusyNow ? 'busy'     // details viewed — likely unchanged
-                    : 'mine';                        // you just booked
+                chosen.isMineNow ? 'available'
+                  : chosen.isBusyNow ? 'busy'
+                    : 'mine';
               map.setFeatureState?.({ source: SRC_ID, id: chosen.id } as any, { state: nextState });
             }
 
-            // 2) Close sheet & refresh queries immediately
+            // 閉じる & データ再取得
             setChosen(null);
             closeSheet();
-
-            // Mark cache stale AND force an active refetch now
             qc.invalidateQueries({ queryKey: ['spots', subareaId] });
             qc.refetchQueries({ queryKey: ['spots', subareaId], type: 'active' });
-
-            // Also refresh my bookings
             qc.invalidateQueries({ queryKey: ['my-bookings'] });
           }}
         />

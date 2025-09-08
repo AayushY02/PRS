@@ -47,7 +47,13 @@ function useTicker(activeSince?: string | null) {
 }
 
 const NOTE_LIMIT = 140;
-const QUICK_NOTES = ['Visitor parking', 'Near elevator', 'EV charging', 'Short stop'];
+const QUICK_NOTES = [
+  '来客用駐車',
+  'エレベーター付近',
+  'EV充電中',
+  '短時間駐車',
+];
+
 
 export default function SpotBookingSheet({
   open,
@@ -108,41 +114,227 @@ export default function SpotBookingSheet({
   };
 
   return (
+    // <Sheet open={open} onOpenChange={onOpenChange}>
+    //   <SheetContent
+    //     side="bottom"
+    //     className="rounded-t-2xl max-h-[95vh] overflow-y-auto p-0"
+    //     style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    //   >
+    //     {/* Header */}
+    //     <div className="px-5 pt-4 pb-3 sticky top-0 bg-white border-b rounded-t-2xl">
+    //       <SheetHeader className="mb-1">
+    //         <SheetTitle className="text-lg flex items-center gap-2">
+    //           <Car className="h-5 w-5" />
+    //           Spot {spotCode}
+    //           <Badge
+    //             className="ml-1"
+    //             variant={isActive ? 'default' : 'secondary'}
+    //           >
+    //             {isActive ? 'Active' : 'Idle'}
+    //           </Badge>
+    //         </SheetTitle>
+    //         <SheetDescription>
+    //           {isActive ? (
+    //             <span className="inline-flex items-center gap-2">
+    //               <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+    //               Your booking is active
+    //             </span>
+    //           ) : (
+    //             'Start a new booking and (optionally) leave a note for yourself.'
+    //           )}
+    //         </SheetDescription>
+    //       </SheetHeader>
+    //     </div>
+
+    //     {/* Body */}
+    //     <div className="px-5 py-4 space-y-4">
+    //       {/* Status card */}
+    //       <Card
+    //         className={[
+    //           'rounded-2xl border',
+    //           isActive
+    //             ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-500/0'
+    //             : 'bg-gradient-to-br from-sky-500/10 to-sky-500/0',
+    //         ].join(' ')}
+    //       >
+    //         <div className="px-4 py-3 flex items-center justify-between">
+    //           <div className="flex items-center gap-2">
+    //             <div
+    //               className={[
+    //                 'h-2.5 w-2.5 rounded-full',
+    //                 isActive ? 'bg-emerald-500' : 'bg-sky-500',
+    //               ].join(' ')}
+    //             />
+    //             <div className="text-sm font-medium">
+    //               {isActive ? 'Booking in progress' : 'Ready to start'}
+    //             </div>
+    //           </div>
+    //           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    //             <Clock className="h-4 w-4" />
+    //             {isActive ? 'Elapsed' : '—'}
+    //           </div>
+    //         </div>
+
+    //         <Separator />
+
+    //         <div className="px-4 py-3">
+    //           <div className="font-mono text-2xl tracking-wide">
+    //             {isActive ? (elapsed ?? '00:00:00') : '00:00:00'}
+    //           </div>
+    //           <div className="mt-2 text-xs text-muted-foreground">
+    //             {isActive
+    //               ? 'Time since you started this booking.'
+    //               : 'You can start and end the booking any time.'}
+    //           </div>
+    //         </div>
+    //       </Card>
+
+    //       {/* Quick info */}
+    //       <div className="flex items-start gap-2 text-xs text-muted-foreground">
+    //         <Info className="h-4 w-4 mt-0.5" />
+    //         <div>
+    //           Ending a booking immediately frees the spot for others. Notes are private to you.
+    //         </div>
+    //       </div>
+
+    //       {/* Note input */}
+    //       <div className="space-y-2">
+    //         <div className="flex items-center justify-between">
+    //           <div className="text-sm font-medium flex items-center gap-2">
+    //             <NotebookPen className="h-4 w-4" />
+    //             Note (optional)
+    //           </div>
+    //           <div
+    //             className={[
+    //               'text-xs font-mono',
+    //               remaining < 10 ? 'text-red-600' : 'text-muted-foreground',
+    //             ].join(' ')}
+    //           >
+    //             {remaining}
+    //           </div>
+    //         </div>
+    //         <Textarea
+    //           placeholder="e.g., EV charging; back in 30m…"
+    //           value={comment}
+    //           onChange={(e) => {
+    //             const v = e.target.value.slice(0, NOTE_LIMIT);
+    //             setComment(v);
+    //           }}
+    //           className="rounded-xl"
+    //           rows={3}
+    //         />
+
+    //         {/* Quick note chips */}
+    //         <div className="flex flex-wrap gap-2">
+    //           {QUICK_NOTES.map((q) => (
+    //             <Button
+    //               key={q}
+    //               type="button"
+    //               variant="outline"
+    //               size="sm"
+    //               className="rounded-full h-7"
+    //               onClick={() => setComment((prev) => {
+    //                 if (!prev) return q;
+    //                 if (prev.includes(q)) return prev;
+    //                 const sep = prev.trim().endsWith('.') ? ' ' : (prev.endsWith(' ') ? '' : ' ');
+    //                 return (prev + sep + q).slice(0, NOTE_LIMIT);
+    //               })}
+    //             >
+    //               + {q}
+    //             </Button>
+    //           ))}
+    //         </div>
+    //       </div>
+
+    //       {/* Actions */}
+    //       <div className="grid grid-cols-2 gap-2 pt-1">
+    //         <Button
+    //           variant={isActive ? 'secondary' : 'default'}
+    //           onClick={startBooking}
+    //           disabled={isActive || submitting !== null}
+    //           className="rounded-xl h-11"
+    //         >
+    //           {submitting === 'start' ? 'Starting…' : (
+    //             <span className="inline-flex items-center gap-2">
+    //               <Play className="h-4 w-4" /> Start
+    //             </span>
+    //           )}
+    //         </Button>
+
+    //         <Button
+    //           variant="destructive"
+    //           onClick={endBooking}
+    //           disabled={!isActive || submitting !== null}
+    //           className="rounded-xl h-11"
+    //         >
+    //           {submitting === 'end' ? 'Ending…' : (
+    //             <span className="inline-flex items-center gap-2">
+    //               <StopCircle className="h-4 w-4" /> End
+    //             </span>
+    //           )}
+    //         </Button>
+    //       </div>
+
+    //       {/* Utilities */}
+    //       <div className="flex items-center justify-between pt-1">
+    //         <Button
+    //           variant="outline"
+    //           size="sm"
+    //           className="rounded-xl"
+    //           onClick={copyCode}
+    //         >
+    //           <Copy className="h-4 w-4 mr-2" />
+    //           Copy spot code
+    //         </Button>
+
+    //         <Button
+    //           variant="ghost"
+    //           size="sm"
+    //           className="rounded-xl"
+    //           onClick={() => onOpenChange(false)}
+    //         >
+    //           Close
+    //         </Button>
+    //       </div>
+    //     </div>
+    //   </SheetContent>
+    // </Sheet>
+
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         className="rounded-t-2xl max-h-[95vh] overflow-y-auto p-0"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {/* Header */}
+        {/* ヘッダー */}
         <div className="px-5 pt-4 pb-3 sticky top-0 bg-white border-b rounded-t-2xl">
           <SheetHeader className="mb-1">
             <SheetTitle className="text-lg flex items-center gap-2">
               <Car className="h-5 w-5" />
-              Spot {spotCode}
+              スポット {spotCode}
               <Badge
                 className="ml-1"
                 variant={isActive ? 'default' : 'secondary'}
               >
-                {isActive ? 'Active' : 'Idle'}
+                {isActive ? '利用中' : '待機中'}
               </Badge>
             </SheetTitle>
             <SheetDescription>
               {isActive ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Your booking is active
+                  あなたの予約は利用中です
                 </span>
               ) : (
-                'Start a new booking and (optionally) leave a note for yourself.'
+                '新しい予約を開始し、必要なら自分用のメモを残せます。'
               )}
             </SheetDescription>
           </SheetHeader>
         </div>
 
-        {/* Body */}
+        {/* 本文 */}
         <div className="px-5 py-4 space-y-4">
-          {/* Status card */}
+          {/* ステータスカード */}
           <Card
             className={[
               'rounded-2xl border',
@@ -160,12 +352,12 @@ export default function SpotBookingSheet({
                   ].join(' ')}
                 />
                 <div className="text-sm font-medium">
-                  {isActive ? 'Booking in progress' : 'Ready to start'}
+                  {isActive ? '予約中' : '開始可能'}
                 </div>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                {isActive ? 'Elapsed' : '—'}
+                {isActive ? '経過時間' : '—'}
               </div>
             </div>
 
@@ -177,26 +369,26 @@ export default function SpotBookingSheet({
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
                 {isActive
-                  ? 'Time since you started this booking.'
-                  : 'You can start and end the booking any time.'}
+                  ? 'この予約を開始してからの経過時間です。'
+                  : '予約はいつでも開始・終了できます。'}
               </div>
             </div>
           </Card>
 
-          {/* Quick info */}
+          {/* 補足情報 */}
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
             <Info className="h-4 w-4 mt-0.5" />
             <div>
-              Ending a booking immediately frees the spot for others. Notes are private to you.
+              予約を終了すると、すぐに他の人が利用できるようになります。メモは自分だけが見られます。
             </div>
           </div>
 
-          {/* Note input */}
+          {/* メモ入力 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium flex items-center gap-2">
                 <NotebookPen className="h-4 w-4" />
-                Note (optional)
+                メモ（任意）
               </div>
               <div
                 className={[
@@ -208,7 +400,7 @@ export default function SpotBookingSheet({
               </div>
             </div>
             <Textarea
-              placeholder="e.g., EV charging; back in 30m…"
+              placeholder="例: EV充電中・30分で戻ります"
               value={comment}
               onChange={(e) => {
                 const v = e.target.value.slice(0, NOTE_LIMIT);
@@ -218,7 +410,7 @@ export default function SpotBookingSheet({
               rows={3}
             />
 
-            {/* Quick note chips */}
+            {/* クイックメモ候補 */}
             <div className="flex flex-wrap gap-2">
               {QUICK_NOTES.map((q) => (
                 <Button
@@ -227,12 +419,14 @@ export default function SpotBookingSheet({
                   variant="outline"
                   size="sm"
                   className="rounded-full h-7"
-                  onClick={() => setComment((prev) => {
-                    if (!prev) return q;
-                    if (prev.includes(q)) return prev;
-                    const sep = prev.trim().endsWith('.') ? ' ' : (prev.endsWith(' ') ? '' : ' ');
-                    return (prev + sep + q).slice(0, NOTE_LIMIT);
-                  })}
+                  onClick={() =>
+                    setComment((prev) => {
+                      if (!prev) return q;
+                      if (prev.includes(q)) return prev;
+                      const sep = prev.trim().endsWith('.') ? ' ' : prev.endsWith(' ') ? '' : ' ';
+                      return (prev + sep + q).slice(0, NOTE_LIMIT);
+                    })
+                  }
                 >
                   + {q}
                 </Button>
@@ -240,7 +434,7 @@ export default function SpotBookingSheet({
             </div>
           </div>
 
-          {/* Actions */}
+          {/* アクション */}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <Button
               variant={isActive ? 'secondary' : 'default'}
@@ -248,9 +442,9 @@ export default function SpotBookingSheet({
               disabled={isActive || submitting !== null}
               className="rounded-xl h-11"
             >
-              {submitting === 'start' ? 'Starting…' : (
+              {submitting === 'start' ? '開始中…' : (
                 <span className="inline-flex items-center gap-2">
-                  <Play className="h-4 w-4" /> Start
+                  <Play className="h-4 w-4" /> 開始
                 </span>
               )}
             </Button>
@@ -261,15 +455,15 @@ export default function SpotBookingSheet({
               disabled={!isActive || submitting !== null}
               className="rounded-xl h-11"
             >
-              {submitting === 'end' ? 'Ending…' : (
+              {submitting === 'end' ? '終了中…' : (
                 <span className="inline-flex items-center gap-2">
-                  <StopCircle className="h-4 w-4" /> End
+                  <StopCircle className="h-4 w-4" /> 終了
                 </span>
               )}
             </Button>
           </div>
 
-          {/* Utilities */}
+          {/* ユーティリティ */}
           <div className="flex items-center justify-between pt-1">
             <Button
               variant="outline"
@@ -278,7 +472,7 @@ export default function SpotBookingSheet({
               onClick={copyCode}
             >
               <Copy className="h-4 w-4 mr-2" />
-              Copy spot code
+              スポットコードをコピー
             </Button>
 
             <Button
@@ -287,11 +481,12 @@ export default function SpotBookingSheet({
               className="rounded-xl"
               onClick={() => onOpenChange(false)}
             >
-              Close
+              閉じる
             </Button>
           </div>
         </div>
       </SheetContent>
     </Sheet>
+
   );
 }
