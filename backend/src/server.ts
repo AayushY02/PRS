@@ -9,7 +9,7 @@ import { spotsRouter } from './routes/spots.routes';
 import { bookingsRouter } from './routes/bookings.routes';
 import regionsRouter from './routes/regions.routes.js';
 import adminRegionsRouter from './routes/regions.admin.routes.js';
-import { authOptional } from './middleware/authOptional.js';
+import { authOptional } from './middleware/authOptional';
 import { liveStream } from './live.js';
 
 
