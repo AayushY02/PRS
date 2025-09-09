@@ -60,8 +60,8 @@ import { AuthPayload, createUser, signJWT, verifyUser } from '../auth';
 import { ENV } from '../env';
 import { db, schema } from '../db'; // << add this
 import { eq } from 'drizzle-orm';   // << add this
-import { authOptional } from '@/middleware/authOptional';
-import { authRequired } from '@/middleware/authRequired';
+import { authOptional } from '../middleware/authOptional';
+import { authRequired } from '../middleware/authRequired';
 
 export const authRouter = Router();
 
