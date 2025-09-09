@@ -193,7 +193,7 @@ import { db, schema } from '../db';
 import { and, eq } from 'drizzle-orm';
 import { sql as raw } from 'drizzle-orm';
 import { authRequired } from '../middleware/authRequired'; // keeps req.userId
-import { broadcastBooking } from '@/live';
+import { broadcastBooking } from '../live';
 
 export const bookingsRouter = Router();
 
