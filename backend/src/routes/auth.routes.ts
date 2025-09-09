@@ -60,6 +60,8 @@ import { AuthPayload, createUser, signJWT, verifyUser } from '../auth';
 import { ENV } from '../env';
 import { db, schema } from '../db'; // << add this
 import { eq } from 'drizzle-orm';   // << add this
+import { authOptional } from '@/middleware/authOptional';
+import { authRequired } from '@/middleware/authRequired';
 
 export const authRouter = Router();
 
@@ -129,3 +131,17 @@ authRouter.get('/me', async (req: Request, res: Response) => {
     res.json({ user: null });
   }
 });
+
+authRouter.get('/whoami', authOptional, (req: Request, res: Response) => {
+  const userId = (req as any).userId ?? null;
+  res.json({ userId });
+});
+
+/**
+ * Example protected ping (optional):
+ * Will 401 when not authenticated.
+ */
+authRouter.get('/me', authRequired, (req: Request, res: Response) => {
+  res.json({ userId: (req as any).userId });
+});
+

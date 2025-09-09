@@ -1,3 +1,6 @@
+
+
+// src/pages/Spots.tsx
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
@@ -5,34 +8,50 @@ import TopTitle from '../components/TopTitle';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { motion } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SpotBookingSheet from '../components/SpotBookingSheet';
 import { Card, CardContent } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
 import { Clock, CheckCircle2, MinusCircle, Car } from 'lucide-react';
-import maplibregl, { Map as MLMap } from 'maplibre-gl';
+import maplibregl, { MapLayerMouseEvent, Map as MLMap } from 'maplibre-gl';
 
 // --- Turf ---
 import { point, lineString, polygon, featureCollection } from '@turf/helpers';
 import destination from '@turf/destination';
 import along from '@turf/along';
 import bbox from '@turf/bbox';
-import type { Feature, FeatureCollection, LineString, Polygon, Position } from 'geojson';
+
+import type {
+  Feature,
+  FeatureCollection,
+  Geometry,
+  LineString,
+  MultiPolygon,
+  Polygon,
+  Position,
+} from 'geojson';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-// ===== Types =====
+// ===== Types (extended with geometry) =====
 type SubSpotRow = {
   id: string;
   code: string;
   isBusyNow: boolean;
   isMineNow: boolean;
   myStartTime: string | null;
+  geometry?: any | null; // Polygon | MultiPolygon | Feature
 };
+
 type ParentSpotRow = {
   id: string;
   code: string;
+  geom?: any | null; // optional parent polygon for future use
   subSpots: SubSpotRow[];
 };
+
+export const API_BASE =
+  (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ||
+  'http://localhost:8080/api'; // dev fallback
 
 // ===== Small bits =====
 function SubSpotSkeleton() {
@@ -71,9 +90,15 @@ const isStyleLoadedSafe = (m?: MLMap | null): boolean =>
   !!(m && typeof m.isStyleLoaded === 'function' && m.isStyleLoaded());
 
 function runWhenStyleReady(map: MLMap, cb: () => void) {
-  if (isStyleLoadedSafe(map)) { cb(); return; }
+  if (isStyleLoadedSafe(map)) {
+    cb();
+    return;
+  }
   const handler = () => {
-    if (isStyleLoadedSafe(map)) { map.off('styledata', handler); cb(); }
+    if (isStyleLoadedSafe(map)) {
+      map.off('styledata', handler);
+      cb();
+    }
   };
   map.on('styledata', handler);
 }
@@ -82,7 +107,7 @@ function runWhenStyleReady(map: MLMap, cb: () => void) {
 function seededRng(seedStr: string) {
   let s = 0;
   for (let i = 0; i < seedStr.length; i++) s = (s * 31 + seedStr.charCodeAt(i)) >>> 0;
-  return () => (s = (s * 1664525 + 1013904223) >>> 0, s / 2 ** 32);
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0), s / 2 ** 32);
 }
 const hash01 = (str: string) => {
   let h = 2166136261 >>> 0;
@@ -90,14 +115,97 @@ const hash01 = (str: string) => {
   return (h >>> 0) / 2 ** 32;
 };
 
-// Build a deterministic “random road” and place sub-spots (as slots) along it.
-// We’ll show up to N=30 sub-spots to keep it readable.
+/* =========================
+   SANITIZERS (server → map)
+   ========================= */
+const isFiniteNum = (n: any) => Number.isFinite(n);
+const isValidLon = (x: number) => isFiniteNum(x) && x >= -180 && x <= 180;
+const isValidLat = (y: number) => isFiniteNum(y) && y >= -90 && y <= 90;
+
+function unwrapFeature(g: any): any {
+  // Accept a full Feature in DB and unwrap to Geometry
+  if (g && g.type === 'Feature' && g.geometry) return g.geometry;
+  return g;
+}
+function closeRingIfNeeded(ring: Position[]): Position[] {
+  if (ring.length < 4) return ring;
+  const [fx, fy] = ring[0];
+  const [lx, ly] = ring[ring.length - 1];
+  if (fx === lx && fy === ly) return ring;
+  return [...ring, ring[0]];
+}
+function looksSwapped(ring: Position[]): boolean {
+  // If any looks like [lat, lon], we’ll swap the whole ring
+  return ring.some(([x, y]) => !isValidLon(x) && isValidLat(x) && isValidLon(y));
+}
+function swapLatLon(r: Position[]) {
+  return r.map(([x, y]) => [y, x]) as Position[];
+}
+function sanitizeRing(ring: any): Position[] | null {
+  if (!Array.isArray(ring)) return null;
+  let r = ring.filter((p: any) => Array.isArray(p) && p.length >= 2 && isFiniteNum(p[0]) && isFiniteNum(p[1])) as Position[];
+  if (r.length < 4) return null;
+  if (looksSwapped(r)) r = swapLatLon(r);
+  if (r.some(([x, y]) => !isValidLon(x) || !isValidLat(y))) return null;
+  r = closeRingIfNeeded(r);
+  return r.length >= 4 ? r : null;
+}
+function sanitizePolygon(geom: any): Polygon | null {
+  if (!geom || geom.type !== 'Polygon' || !Array.isArray(geom.coordinates)) return null;
+  const rings = geom.coordinates.map(sanitizeRing).filter(Boolean) as Position[][];
+  if (!rings.length) return null;
+  return { type: 'Polygon', coordinates: rings };
+}
+function sanitizeMultiPolygon(geom: any): MultiPolygon | null {
+  if (!geom || geom.type !== 'MultiPolygon' || !Array.isArray(geom.coordinates)) return null;
+  const polys: Position[][][] = [];
+  for (const poly of geom.coordinates) {
+    if (!Array.isArray(poly)) continue;
+    const rings = poly.map(sanitizeRing).filter(Boolean) as Position[][];
+    if (rings.length) polys.push(rings);
+  }
+  if (!polys.length) return null;
+  return { type: 'MultiPolygon', coordinates: polys };
+}
+function sanitizeAnyPoly(geom: any): Polygon | MultiPolygon | null {
+  const g = unwrapFeature(geom);
+  if (!g) return null;
+  if (g.type === 'Polygon') return sanitizePolygon(g);
+  if (g.type === 'MultiPolygon') return sanitizeMultiPolygon(g);
+  return null; // only polygons supported here
+}
+
+function buildServerFC(subs: SubSpotRow[]): FeatureCollection<Polygon | MultiPolygon> {
+  const features: Feature<Polygon | MultiPolygon>[] = [];
+  for (const s of subs) {
+    const clean = sanitizeAnyPoly(s?.geometry);
+    if (!clean) continue;
+    const state = s.isMineNow ? 'mine' : s.isBusyNow ? 'busy' : 'available';
+    const color = state === 'mine' ? COLOR_MINE : state === 'busy' ? COLOR_BUSY : COLOR_AVAIL;
+    features.push({
+      type: 'Feature',
+      id: s.id,
+      geometry: clean,
+      properties: {
+        type: 'slot',
+        code: s.code,
+        subSpotId: s.id,
+        state,
+        color,
+      },
+    });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+/* ==========================================
+   PREVIEW (only if server has no valid polys)
+   ========================================== */
 function buildPreviewFeatures(
   seed: string,
   flatSubSpots: SubSpotRow[]
 ): FeatureCollection<LineString | Polygon> {
   const rand = seededRng(seed);
-
   const bearingDeg = Math.floor(rand() * 180); // 0..179
   const offsetLon = (rand() - 0.5) * 0.003;    // ~±3000m lon
   const offsetLat = (rand() - 0.5) * 0.002;    // ~±2000m lat
@@ -107,17 +215,17 @@ function buildPreviewFeatures(
   const lenKm = 0.3 / 1000;
   const start = destination(center, lenKm / 2, bearingDeg, { units: 'kilometers' });
   const end = destination(center, lenKm / 2, bearingDeg + 180, { units: 'kilometers' });
-  const road = lineString(
-    [start.geometry.coordinates, end.geometry.coordinates],
-    { type: 'road', color: '#64748b' } // zinc-500
-  ) as Feature<LineString>;
+  const road = lineString([start.geometry.coordinates, end.geometry.coordinates], {
+    type: 'road',
+    color: '#64748b',
+  }) as Feature<LineString>;
 
   const pick = [...flatSubSpots].sort((a, b) => a.code.localeCompare(b.code)).slice(0, 30);
   const n = Math.max(1, pick.length);
   const spacingKm = lenKm / (n + 1);
 
-  const widthKm = 2.7 / 1000;  // 2.7 m across
-  const depthKm = 5.4 / 1000;  // 5.4 m away from road
+  const widthKm = 2.7 / 1000;  // ~2.7 m
+  const depthKm = 5.4 / 1000;  // ~5.4 m
 
   const slots: Feature<Polygon>[] = [];
   for (let i = 0; i < pick.length; i++) {
@@ -132,7 +240,7 @@ function buildPreviewFeatures(
     const pA = destination(mid, widthKm / 2, bearingDeg, { units: 'kilometers' });
     const pB = destination(mid, widthKm / 2, bearingDeg + 180, { units: 'kilometers' });
 
-    const outward = bearingDeg + (90 * sideSign);
+    const outward = bearingDeg + 90 * sideSign;
     const pA2 = destination(pA, depthKm, outward, { units: 'kilometers' });
     const pB2 = destination(pB, depthKm, outward, { units: 'kilometers' });
 
@@ -153,18 +261,23 @@ function buildPreviewFeatures(
       state,
       color: fill,
     }) as Feature<Polygon>;
-
     poly.id = s.id;
     slots.push(poly);
   }
 
-  const fc = featureCollection<LineString | Polygon>([road, ...slots]);
-  return fc as FeatureCollection<LineString | Polygon>;
+  return featureCollection<LineString | Polygon>([road, ...slots]) as FeatureCollection<LineString | Polygon>;
 }
 
 export default function Spots() {
   const { subareaId } = useParams();
   const qc = useQueryClient();
+  const liveStatesRef = useRef(new Map<string, 'mine' | 'busy' | 'available'>());
+
+  // store map event handlers so we can .off() them correctly
+  const clickHandlerRef = useRef<((e: MapLayerMouseEvent) => void) | null>(null);
+  const moveHandlerRef = useRef<((e: MapLayerMouseEvent) => void) | null>(null);
+  const leaveHandlerRef = useRef<(() => void) | null>(null);
+  const prevHoverIdRef = useRef<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['spots', subareaId],
@@ -172,12 +285,39 @@ export default function Spots() {
     enabled: !!subareaId,
   });
 
-  const parents: ParentSpotRow[] = (data?.spots ?? []) as ParentSpotRow[];
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      try {
+        const r = await api.get('/api/auth/whoami');
+        return r.data;
+      } catch {
+        return { userId: null }; // treat as anonymous
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const myUserId: string | null = me?.userId ?? null;
+
+  const parents: ParentSpotRow[] = (data?.spots ?? []) as any;
   const flatAll = useMemo(() => parents.flatMap(p => p.subSpots), [parents]);
+
+  // Build sanitized FeatureCollection from server polygons
+  const serverFC = useMemo<FeatureCollection<Polygon | MultiPolygon>>(
+    () => buildServerFC(flatAll),
+    [flatAll]
+  );
 
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<SubSpotRow | null>(null);
   const [filter, setFilter] = useState<FilterMode>('all');
+
+  const subSpotById = useMemo(() => {
+    const m = new Map<string, SubSpotRow>();
+    flatAll.forEach(s => m.set(s.id, s));
+    return m;
+  }, [flatAll]);
 
   const counts = useMemo(() => ({
     total: flatAll.length,
@@ -233,6 +373,41 @@ export default function Spots() {
     setTimeout(() => map.resize(), 250);
   };
 
+  // keep a single hover feature on map in sync with card hover
+  const setMapHover = useCallback((id: string | null) => {
+    const map = mapRef.current;
+    if (!map || !isStyleLoadedSafe(map)) return;
+    if (prevHoverIdRef.current) {
+      map.setFeatureState({ source: SRC_ID, id: prevHoverIdRef.current } as any, { hover: false });
+    }
+    if (id) {
+      map.setFeatureState({ source: SRC_ID, id } as any, { hover: true });
+    }
+    prevHoverIdRef.current = id;
+  }, []);
+
+  function fitToDataOrFallback(map: MLMap, data: GeoJSON.FeatureCollection, fallbackCenter = KASHIWA) {
+    try {
+      const safe = Array.isArray(data?.features) ? data : { type: 'FeatureCollection', features: [] };
+      if (safe.features.length === 0) {
+        map.setCenter(fallbackCenter);
+        map.setZoom(15);
+        return;
+      }
+      const [minX, minY, maxX, maxY] = bbox(safe as any);
+      if ([minX, minY, maxX, maxY].some(v => !isFinite(v))) {
+        map.setCenter(fallbackCenter);
+        map.setZoom(15);
+        return;
+      }
+      const bounds = new maplibregl.LngLatBounds([minX, minY], [maxX, maxY]);
+      map.fitBounds(bounds, { padding: 24, duration: 300 });
+    } catch {
+      map.setCenter(fallbackCenter);
+      map.setZoom(15);
+    }
+  }
+
   useEffect(() => {
     if (mapRef.current) return;
 
@@ -262,6 +437,7 @@ export default function Spots() {
 
       map.on('error', (e) => {
         const msg = (e as any)?.error?.message || '';
+        // eslint-disable-next-line no-console
         console.error('[MapLibre error]', e);
         if (MAP_STYLE !== DEMO_STYLE && /style|fetch|network|json/i.test(msg)) {
           map.setStyle(DEMO_STYLE);
@@ -311,12 +487,34 @@ export default function Spots() {
       const SLOTS_LINE = 'subspots-slots-line';
       const SLOTS_LABEL = 'subspots-slots-label';
 
-      const data = previewFC as unknown as GeoJSON.FeatureCollection;
+      // Prefer server rectangles if any exist, otherwise fallback to fake preview road+slots
+      const fcHasServer = (serverFC?.features?.length ?? 0) > 0;
+      // const useFC = fcHasServer
+      //   ? (serverFC as unknown as GeoJSON.FeatureCollection)
+      //   : (previewFC as unknown as GeoJSON.FeatureCollection);
+
+      const useFC = serverFC as any;
+
+      if (!fcHasServer) {
+        console.warn('[Spots] No valid sub-spot polygons from server; showing preview rectangles.');
+      }
 
       if (map.getSource(SRC_ID)) {
-        (map.getSource(SRC_ID) as maplibregl.GeoJSONSource).setData(data);
+        (map.getSource(SRC_ID) as maplibregl.GeoJSONSource).setData(useFC);
       } else {
-        map.addSource(SRC_ID, { type: 'geojson', data } as any);
+        map.addSource(SRC_ID, {
+          type: 'geojson',
+          data: useFC,
+          // ✅ ensures feature-state ids are stable across reloads
+          promoteId: 'subSpotId',
+        } as any);
+      }
+
+      // (Re)set the source
+      if (map.getSource(SRC_ID)) {
+        (map.getSource(SRC_ID) as maplibregl.GeoJSONSource).setData(useFC);
+      } else {
+        map.addSource(SRC_ID, { type: 'geojson', data: useFC } as any);
       }
 
       const ensure = (id: string, layer: any) => {
@@ -324,27 +522,36 @@ export default function Spots() {
         map.addLayer(layer as any);
       };
 
-      ensure(ROAD, {
-        id: ROAD,
-        type: 'line',
-        source: SRC_ID,
-        filter: ['==', ['get', 'type'], 'road'],
-        paint: { 'line-color': ['get', 'color'], 'line-width': 5, 'line-opacity': 0.8 },
-      });
+      // Only draw the ROAD layer if we’re using preview (server rectangles won’t have a road line)
+      if (!fcHasServer) {
+        ensure(ROAD, {
+          id: ROAD,
+          type: 'line',
+          source: SRC_ID,
+          filter: ['==', ['get', 'type'], 'road'],
+          paint: { 'line-color': ['get', 'color'], 'line-width': 5, 'line-opacity': 0.8 },
+        });
+      } else if (map.getLayer(ROAD)) {
+        map.removeLayer(ROAD);
+      }
 
       const colorExpr = [
         'case',
-        ['==', ['feature-state', 'state'], 'mine'], COLOR_MINE,
-        ['==', ['feature-state', 'state'], 'busy'], COLOR_BUSY,
-        ['==', ['feature-state', 'state'], 'available'], COLOR_AVAIL,
-        ['get', 'color'],
-      ] as any;
+        ['==', ['feature-state', 'state'], 'mine'], '#10b981',    // green
+        ['==', ['feature-state', 'state'], 'busy'], '#9ca3af',    // gray
+        ['==', ['feature-state', 'state'], 'available'], '#38bdf8', // sky
+        ['coalesce', ['get', 'color'], '#38bdf8'],               // fallback
+      ];
 
       ensure(SLOTS_FILL, {
         id: SLOTS_FILL,
         type: 'fill',
         source: SRC_ID,
-        filter: ['==', ['get', 'type'], 'slot'],
+        filter: ['any',
+          ['==', ['get', 'type'], 'slot'],               // preview slots
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon'],
+        ],
         paint: { 'fill-color': colorExpr, 'fill-opacity': 0.7 },
       });
 
@@ -352,7 +559,11 @@ export default function Spots() {
         id: SLOTS_LINE,
         type: 'line',
         source: SRC_ID,
-        filter: ['==', ['get', 'type'], 'slot'],
+        filter: ['any',
+          ['==', ['get', 'type'], 'slot'],
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon'],
+        ],
         paint: { 'line-color': colorExpr, 'line-width': 2, 'line-opacity': 0.9 },
       });
 
@@ -360,22 +571,66 @@ export default function Spots() {
         id: SLOTS_LABEL,
         type: 'symbol',
         source: SRC_ID,
-        filter: ['==', ['get', 'type'], 'slot'],
+        filter: ['any',
+          ['==', ['get', 'type'], 'slot'],
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon'],
+        ],
         layout: { 'text-field': ['get', 'code'], 'text-size': 10, 'text-allow-overlap': true },
         paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
       });
 
-      const [minX, minY, maxX, maxY] = bbox(data);
-      const bounds = new maplibregl.LngLatBounds([minX, minY], [maxX, maxY]);
-      map.fitBounds(bounds, { padding: 24, duration: 300 });
+      // SAFE FIT
+      fitToDataOrFallback(map, useFC, KASHIWA);
 
+      // Clear any stale feature-state after we replaced data
+      // map.removeFeatureState?.({ source: SRC_ID } as any);
       map.removeFeatureState?.({ source: SRC_ID } as any);
+      for (const [id, st] of liveStatesRef.current) {
+        map.setFeatureState({ source: SRC_ID, id } as any, { state: st });
+      }
     });
-  }, [styleReady, previewFC]);
+  }, [styleReady, previewFC, serverFC]);
+
+
+
+  useEffect(() => {
+    // ✅ match server mount (app.get('/api/live', ...))
+    const LIVE_URL = API_BASE + '/api/live';
+    const es = new EventSource(LIVE_URL, { withCredentials: true });
+
+    const onBooking = (ev: MessageEvent) => {
+      try {
+        const msg = JSON.parse(ev.data) as { event: 'start' | 'end'; subSpotId: string; userId: string };
+        const map = mapRef.current;
+        const state =
+          msg.event === 'start'
+            ? (myUserId && msg.userId === myUserId ? 'mine' : 'busy')
+            : 'available';
+
+        // ✅ cache the live state
+        liveStatesRef.current.set(msg.subSpotId, state);
+
+        // ✅ apply immediately if source is ready
+        if (map && isStyleLoadedSafe(map) && map.getSource(SRC_ID)) {
+          map.setFeatureState({ source: SRC_ID, id: msg.subSpotId } as any, { state });
+        }
+
+        // refresh list/counters in background
+        qc.invalidateQueries({ queryKey: ['spots', subareaId] });
+      } catch { }
+    };
+
+    es.addEventListener('booking', onBooking as any);
+    return () => { es.removeEventListener('booking', onBooking as any); es.close(); };
+  }, [myUserId, qc, subareaId]);
 
   // ===========================
   // ===== UI BELOW THE MAP ====
   // ===========================
+  // const [filterLocal, setFilterLocal] = useState<FilterMode>(filter);
+  // useEffect(() => { setFilterLocal(filterLocal); }, [filterLocal]); // keep TS quiet
+
   return (
     <>
       <TopTitle title="駐車スペース" subtitle={`自分: ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`} />
@@ -396,9 +651,8 @@ export default function Spots() {
         </div>
       </div>
 
-      {/* Compact metric chips (scrollable on mobile) */}
+      {/* Compact metric chips */}
       <div className="mb-4 grid grid-cols-3 gap-2">
-        {/* Total */}
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border border-blue-200 dark:border-blue-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1">
@@ -408,8 +662,6 @@ export default function Spots() {
             <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Total</div>
           </CardContent>
         </Card>
-
-        {/* Mine */}
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border border-emerald-200 dark:border-emerald-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1">
@@ -419,8 +671,6 @@ export default function Spots() {
             <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">Mine</div>
           </CardContent>
         </Card>
-
-        {/* Available */}
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-1">
@@ -432,14 +682,14 @@ export default function Spots() {
         </Card>
       </div>
 
-      {/* Filter bar (full-width buttons on mobile) */}
+      {/* Filter bar */}
       <div className="mb-3 grid grid-cols-3 gap-2">
         <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => setFilter('all')}>すべて</Button>
         <Button size="sm" variant={filter === 'available' ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => setFilter('available')}>空き</Button>
         <Button size="sm" variant={filter === 'mine' ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => setFilter('mine')}>自分</Button>
       </div>
 
-      {/* Parent → Sub-spot groups (Accordion for space efficiency) */}
+      {/* Parent → Sub-spot groups (Accordion) */}
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -493,6 +743,10 @@ export default function Spots() {
                           initial={{ opacity: 0, y: 8, scale: 0.98 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           transition={{ duration: 0.2, delay: Math.min(idx, 10) * 0.015 }}
+                          onMouseEnter={() => setMapHover(s.id)}
+                          onMouseLeave={() => setMapHover(null)}
+                          onFocus={() => setMapHover(s.id)}
+                          onBlur={() => setMapHover(null)}
                         >
                           <div className={['rounded-xl p-3 border bg-gradient-to-br', accent].join(' ')}>
                             <div className="text-sm font-medium truncate">{s.code}</div>
@@ -546,10 +800,7 @@ export default function Spots() {
           onSuccess={async () => {
             const map = mapRef.current;
             if (map && chosen) {
-              const nextState =
-                chosen.isMineNow ? 'available'
-                  : chosen.isBusyNow ? 'busy'
-                    : 'mine';
+              const nextState = chosen.isMineNow ? 'available' : 'mine';
               map.setFeatureState?.({ source: SRC_ID, id: chosen.id } as any, { state: nextState });
             }
 

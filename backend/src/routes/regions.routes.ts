@@ -1,90 +1,86 @@
-// backend/src/routes/regions.routes.ts
-import { Router } from 'express';
+
+
+import { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
+import * as turf from '@turf/turf';
+import type { Feature, LineString, Polygon } from 'geojson';
 import { db, schema } from '../db';
-import { eq, sql } from 'drizzle-orm';
-import z from 'zod';
+import { asc, eq } from 'drizzle-orm';
 
-export const regionsRouter = Router();
+const regionsRouter = Router();
 
-/**
- * GET /api/regions
- * Simple list of regions (id, name, code). Add fields as your schema allows.
- */
-regionsRouter.get('/', async (_req, res) => {
-  try {
-    const rows = await db
-      .select({
-        id:        schema.regions.id,
-        name:      schema.regions.name,
-        code:      schema.regions.code,      // if your schema lacks `code`, remove this line
-      })
-      .from(schema.regions);
-    res.json({ regions: rows });
-  } catch (e) {
-    console.error('GET /api/regions failed:', e);
-    res.status(500).json({ error: 'Failed to fetch regions' });
-  }
+/** GET /api/regions */
+regionsRouter.get('/', async (_req: Request, res: Response) => {
+  const rows = await db
+    .select({
+      id: schema.regions.id,
+      code: schema.regions.code,
+      name: schema.regions.name,
+      hasCenterline: schema.regions.centerline,
+      centerline: schema.regions.centerline,
+      hasGeom: schema.regions.geom,
+      geom: schema.regions.geom,
+      createdAt: schema.regions.createdAt,
+    })
+    .from(schema.regions)
+    .orderBy(asc(schema.regions.code));
+
+  res.json({
+    regions: rows.map(r => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      hasCenterline: !!r.hasCenterline,
+      centerline: r.centerline,
+      hasGeom: !!r.hasGeom,
+      geom: r.geom,
+      createdAt: r.createdAt,
+    })),
+  });
 });
 
-/**
- * GET /api/regions/:id
- * Returns a single region plus counts:
- *   - subareasCount: number of subareas under this region
- *   - spotsCount: total number of spots across those subareas
- */
-regionsRouter.get('/:id', async (req, res) => {
-  const Params = z.object({ id: z.string().uuid() });
-  const parsed = Params.safeParse(req.params);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid region id' });
-  }
+/** GET /api/regions/:regionId  (by ID to match frontend) */
+regionsRouter.get('/:regionId', async (req: Request, res: Response) => {
+  const Params = z.object({ regionId: z.string().uuid() }).safeParse(req.params);
+  if (!Params.success) return res.status(400).json({ error: Params.error.flatten() });
 
-  const { id } = parsed.data;
+  const [region] = await db
+    .select({
+      id: schema.regions.id,
+      code: schema.regions.code,
+      name: schema.regions.name,
+      centerline: schema.regions.centerline,
+      geom: schema.regions.geom,
+      createdAt: schema.regions.createdAt,
+    })
+    .from(schema.regions)
+    .where(eq(schema.regions.id, Params.data.regionId))
+    .limit(1);
 
-  try {
-    // 1) Fetch the region
-    const regionRows = await db
-      .select({
-        id:   schema.regions.id,
-        name: schema.regions.name,
-        code: schema.regions.code, // remove if not present in your schema
-      })
-      .from(schema.regions)
-      .where(eq(schema.regions.id, id))
-      .limit(1);
+  if (!region) return res.status(404).json({ error: 'Region not found' });
+  res.json({ region });
+});
 
-    const region = regionRows[0];
-    if (!region) return res.status(404).json({ error: 'Region not found' });
+/** (Optional helper if you want to fetch by code) GET /api/regions/by-code/:code */
+regionsRouter.get('/by-code/:code', async (req: Request, res: Response) => {
+  const Params = z.object({ code: z.string() }).safeParse(req.params);
+  if (!Params.success) return res.status(400).json({ error: Params.error.flatten() });
 
-    // 2) Fetch counts (done as two small queries; keep them simple to avoid array-cast pitfalls)
-    const subareasCountRes = await db.execute(sql`
-      SELECT COUNT(*)::int AS c
-      FROM subareas
-      WHERE region_id = ${id}::uuid
-    `);
-    const subareasCount: number = (subareasCountRes as any).rows?.[0]?.c ?? 0;
+  const [region] = await db
+    .select({
+      id: schema.regions.id,
+      code: schema.regions.code,
+      name: schema.regions.name,
+      centerline: schema.regions.centerline,
+      geom: schema.regions.geom,
+      createdAt: schema.regions.createdAt,
+    })
+    .from(schema.regions)
+    .where(eq(schema.regions.code, Params.data.code))
+    .limit(1);
 
-    const spotsCountRes = await db.execute(sql`
-      SELECT COUNT(*)::int AS c
-      FROM spots s
-      WHERE s.subarea_id IN (
-        SELECT sa.id FROM subareas sa WHERE sa.region_id = ${id}::uuid
-      )
-    `);
-    const spotsCount: number = (spotsCountRes as any).rows?.[0]?.c ?? 0;
-
-    // 3) Return region with counts
-    res.json({
-      region: {
-        ...region,
-        subareasCount,
-        spotsCount,
-      },
-    });
-  } catch (e) {
-    console.error('GET /api/regions/:id failed:', e);
-    res.status(500).json({ error: 'Failed to fetch region' });
-  }
+  if (!region) return res.status(404).json({ error: 'Region not found' });
+  res.json({ region });
 });
 
 export default regionsRouter;

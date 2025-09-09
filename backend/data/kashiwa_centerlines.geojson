@@ -1,0 +1,119 @@
+{
+  "type": "FeatureCollection",
+  "name": "kashiwa_centerlines_placeholder",
+  "created_at": "2025-09-08T06:11:46.351516Z",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "kukan-01",
+      "properties": {
+        "region_code": "kukan-01",
+        "name": "区間①",
+        "note": "Placeholder line near Kashiwa (replace with real centerline when available)"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.9448,
+            35.9031
+          ],
+          [
+            139.9491,
+            35.9054
+          ],
+          [
+            139.9529,
+            35.9076
+          ],
+          [
+            139.9566,
+            35.91
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-02",
+      "properties": {
+        "region_code": "kukan-02",
+        "name": "区間②",
+        "note": "Placeholder line near Kashiwa (replace with real centerline when available)"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.9596,
+            35.8969
+          ],
+          [
+            139.9641,
+            35.8991
+          ],
+          [
+            139.9683,
+            35.901
+          ],
+          [
+            139.9711,
+            35.9023
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-06",
+      "properties": {
+        "region_code": "kukan-06",
+        "name": "区間⑥",
+        "note": "Placeholder line near Kashiwa-no-ha Campus (replace later)"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.9723,
+            35.8886
+          ],
+          [
+            139.9753,
+            35.8912
+          ],
+          [
+            139.9784,
+            35.8941
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-07",
+      "properties": {
+        "region_code": "kukan-07",
+        "name": "区間⑦",
+        "note": "Placeholder line near Kashiwa-no-ha Campus (replace later)"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.98,
+            35.9003
+          ],
+          [
+            139.9832,
+            35.8981
+          ],
+          [
+            139.9868,
+            35.8956
+          ]
+        ]
+      }
+    }
+  ]
+}

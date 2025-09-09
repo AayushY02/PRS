@@ -1,6 +1,7 @@
 // backend/src/schema.ts
-import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, integer, unique, customType } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, integer, unique, customType, jsonb } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+type GJ = any;
 
 // We keep tstzrange as a raw SQL data type. We'll use raw SQL in queries when needed.
 const tstzrange = customType<{ data: string; driverData: string }>({
@@ -23,6 +24,8 @@ export const regions = pgTable('regions', {
   code: text('code').notNull().unique(), // "kashiwa 001"
   name: text('name').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  centerline: jsonb('centerline').$type<GJ | null>().default(null),
+  geom: jsonb('geom').$type<GJ | null>().default(null),
 });
 
 export const subareas = pgTable(
@@ -36,10 +39,12 @@ export const subareas = pgTable(
     name: text('name').notNull(),
     highlightImageUrl: text('highlight_image_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    geom: jsonb('geom').$type<GJ | null>().default(null),
   },
   (t) => ({
     // ✅ use uniqueIndex instead of index(...).unique()
     regionCodeUnique: uniqueIndex('subareas_region_code_unique').on(t.regionId, t.code),
+
   }),
 );
 
@@ -53,6 +58,7 @@ export const spots = pgTable(
     code: text('code').notNull(),
     description: text('description'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    geom: jsonb('geom').$type<GJ | null>().default(null),
   },
   (t) => ({
     // ✅ use uniqueIndex instead of index(...).unique()
@@ -66,6 +72,7 @@ export const subSpots = pgTable('sub_spots', {
   spotId: uuid('spot_id').notNull().references(() => spots.id, { onDelete: 'cascade' }),
   code: varchar('code', { length: 64 }).notNull(),         // e.g., S-12-A / “01-3”
   idx: integer('idx').notNull(),                           // 1..N (order inside spot)
+  geom: jsonb('geom').$type<GJ | null>().default(null),
 }, (t) => ({
   uniqPerSpot: unique().on(t.spotId, t.idx),
   uniqCode: unique().on(t.code),
