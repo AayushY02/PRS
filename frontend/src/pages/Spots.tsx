@@ -659,7 +659,7 @@ export default function Spots() {
               <Car className="h-4 w-4" />
             </div>
             <div className="text-base font-semibold tabular-nums leading-none">{counts.total}</div>
-            <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Total</div>
+            <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">合計</div>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border border-emerald-200 dark:border-emerald-800">
@@ -668,7 +668,7 @@ export default function Spots() {
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div className="text-base font-semibold tabular-nums leading-none">{counts.mine}</div>
-            <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">Mine</div>
+            <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">鉱山</div>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800">
@@ -677,7 +677,7 @@ export default function Spots() {
               <MinusCircle className="h-4 w-4" />
             </div>
             <div className="text-base font-semibold tabular-nums leading-none">{counts.available}</div>
-            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">Available</div>
+            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">利用可能</div>
           </CardContent>
         </Card>
       </div>
