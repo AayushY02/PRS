@@ -19,36 +19,6 @@ const activeNowCond = and(
  * GET /api/stats/subareas/by-region/:regionId
  * -> { subareaStats: [{ subareaId, total, busy, free }] }
  */
-// statsRouter.get('/subareas/by-region/:regionId', async (req: Request, res: Response) => {
-//   const { regionId } = req.params;
-
-//   const rows = await db
-//     .select({
-//       subareaId: schema.subareas.id,
-//       total: sql<number>`COUNT(DISTINCT ${schema.subSpots.id})`,
-//       busy: sql<number>`COUNT(DISTINCT CASE WHEN ${schema.bookings.id} IS NOT NULL THEN ${schema.subSpots.id} END)`,
-//     })
-//     .from(schema.subareas)
-//     .leftJoin(schema.spots, eq(schema.spots.subareaId, schema.subareas.id))
-//     .leftJoin(schema.subSpots, eq(schema.subSpots.spotId, schema.spots.id))
-//     .leftJoin(
-//       schema.bookings,
-//       and(
-//         eq(schema.bookings.subSpotId, schema.subSpots.id),
-//         activeNowCond
-//       )
-//     )
-//     .where(eq(schema.subareas.regionId, regionId))
-//     .groupBy(schema.subareas.id);
-
-//   const subareaStats = rows.map(r => {
-//     const total = r.total ?? 0;
-//     const busy = r.busy ?? 0;
-//     return { subareaId: r.subareaId, total, busy, free: Math.max(0, total - busy) };
-//   });
-
-//   res.json({ subareaStats });
-// });
 
 const paramsSchema = z.object({
     regionId: z.string().uuid(), // adjust to .string() if your ids aren’t UUIDs
