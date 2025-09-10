@@ -11,6 +11,7 @@ import regionsRouter from './routes/regions.routes.js';
 import adminRegionsRouter from './routes/regions.admin.routes.js';
 import { authOptional } from './middleware/authOptional';
 import { liveStream } from './live.js';
+import statsRouter from './routes/stats.routes.js';
 
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/subareas', subareasRouter);
 app.use('/api/spots', spotsRouter);
 app.use('/api/bookings', bookingsRouter);
 app.get('/api/live', authOptional, liveStream);
+app.use('/api/stats', statsRouter);
 
 app.listen(ENV.PORT, () => {
   console.log(`API listening on http://localhost:${ENV.PORT}`);

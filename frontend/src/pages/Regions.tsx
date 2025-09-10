@@ -1,8 +1,10 @@
+
+
 // // src/pages/Regions.tsx
 // import { useEffect, useMemo, useState } from 'react';
 // import { useQuery } from '@tanstack/react-query';
 // import { motion, AnimatePresence } from 'framer-motion';
-// import { Link } from 'react-router-dom';
+// import { Link, useNavigate } from 'react-router-dom';
 
 // import TopTitle from '../components/TopTitle';
 // import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,6 +12,7 @@
 // import { Input } from '../components/ui/input';
 // import { Button } from '../components/ui/button';
 // import { api } from '../lib/api';
+// import MapHighlight from '../components/MapHighlight';
 
 // import {
 //   Copy,
@@ -21,7 +24,10 @@
 //   X,
 //   MapPin,
 //   RefreshCw,
+//   MapPinned,
 // } from 'lucide-react';
+
+// import type { Feature, Polygon, MultiPolygon } from 'geojson';
 
 // type Region = {
 //   id: string;
@@ -29,15 +35,18 @@
 //   code?: string | null;
 //   subareasCount?: number;
 //   spotsCount?: number;
+//   // NEW: geometry provided by backend (Polygon Feature or Geometry)
+//   geom?: any | null;
+//   geometry?: any | null;
 // };
 
 // const ACCENTS = [
-//   { bar: 'bg-rose-500',    ring: 'from-rose-500/15' },
-//   { bar: 'bg-amber-500',   ring: 'from-amber-500/15' },
-//   { bar: 'bg-emerald-500', ring: 'from-emerald-500/15' },
-//   { bar: 'bg-sky-500',     ring: 'from-sky-500/15' },
-//   { bar: 'bg-violet-500',  ring: 'from-violet-500/15' },
-//   { bar: 'bg-pink-500',    ring: 'from-pink-500/15' },
+//   { bar: 'bg-rose-500',    ring: 'from-rose-500/15',   hex: '#f43f5e' },
+//   { bar: 'bg-amber-500',   ring: 'from-amber-500/15',  hex: '#f59e0b' },
+//   { bar: 'bg-emerald-500', ring: 'from-emerald-500/15',hex: '#10b981' },
+//   { bar: 'bg-sky-500',     ring: 'from-sky-500/15',    hex: '#38bdf8' },
+//   { bar: 'bg-violet-500',  ring: 'from-violet-500/15', hex: '#8b5cf6' },
+//   { bar: 'bg-pink-500',    ring: 'from-pink-500/15',   hex: '#ec4899' },
 // ];
 // const pickAccent = (seed: string | undefined) => {
 //   const n = (seed ?? '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -75,6 +84,8 @@
 // };
 
 // export default function Regions() {
+//   const navigate = useNavigate();
+
 //   const { data, isLoading, isFetching, error, refetch } = useQuery({
 //     queryKey: ['regions'],
 //     queryFn: async () => (await api.get('/api/regions')).data,
@@ -87,6 +98,7 @@
 //   const [debouncedQ, setDebouncedQ] = useState('');
 //   const [sortBy, setSortBy] = useState<'name' | 'code'>('name');
 //   const [copiedId, setCopiedId] = useState<string | null>(null);
+//   const [activeIdx, setActiveIdx] = useState<number | null>(null); // ← sync with map
 
 //   // debounce search for smoother typing
 //   useEffect(() => {
@@ -109,6 +121,28 @@
 //     return list;
 //   }, [regions, debouncedQ, sortBy]);
 
+//   // Map features (rectangles) for regions
+//   const features = useMemo(() => {
+//     return filtered
+//       .map((r, i) => {
+//         const geom = (r as any).geom ?? (r as any).geometry;
+//         if (!geom) return null;
+//         const accent = pickAccent(r.id || r.code || r.name);
+//         return {
+//           type: 'Feature',
+//           id: r.id,
+//           properties: {
+//             id: r.id,
+//             name: r.name,
+//             code: r.code ?? '',
+//             color: accent.hex, // ← map fill color matches card accent
+//           },
+//           geometry: geom, // MapHighlight sanitizes Feature/Geometry, rings, and lat-lon
+//         } as Feature<Polygon | MultiPolygon>;
+//       })
+//       .filter(Boolean) as Feature<Polygon | MultiPolygon>[];
+//   }, [filtered]);
+
 //   const onCopy = async (text: string, regionId: string) => {
 //     if (!text) return;
 //     try {
@@ -116,7 +150,7 @@
 //       setCopiedId(regionId);
 //       setTimeout(() => setCopiedId(null), 1000);
 //     } catch {
-//       // ignore
+//       /* ignore */
 //     }
 //   };
 
@@ -124,6 +158,24 @@
 //     <>
 //       {/* Page header */}
 //       <TopTitle title="地域を選択" subtitle="柏エリア" />
+
+//       {/* Map preview of all regions */}
+//       {!isLoading && filtered.length > 0 && (
+//         <div className="mb-3">
+//           <MapHighlight
+//             // give the map a stable but present key so it refreshes on data changes smoothly
+//             key={`regions-map-${filtered.length}`}
+//             features={features}
+//             selectedIndex={activeIdx ?? undefined}
+//             onFeatureClick={(idx) => {
+//               const r = filtered[idx];
+//               if (r) navigate(`/r/${r.id}`);
+//             }}
+            
+            
+//           />
+//         </div>
+//       )}
 
 //       {/* Sticky toolbar */}
 //       <div className="sticky top-16 z-10 mb-4">
@@ -255,6 +307,10 @@
 //                   transition={{ duration: 0.25, delay: idx * 0.03, ease: 'easeOut' }}
 //                   whileHover={{ y: -2 }}
 //                   layout
+//                   onMouseEnter={() => setActiveIdx(idx)}
+//                   onMouseLeave={() => setActiveIdx(null)}
+//                   onFocus={() => setActiveIdx(idx)}
+//                   onBlur={() => setActiveIdx(null)}
 //                 >
 //                   <Link to={`/r/${r.id}`} className="block group focus:outline-none">
 //                     <Card
@@ -283,7 +339,10 @@
 //                       </CardHeader>
 
 //                       <CardContent className="pl-5 pr-5 pb-4">
-//                         <div className="text-xs text-muted-foreground">タップしてサブエリアを表示</div>
+//                         <div className="text-xs text-muted-foreground flex items-center gap-1">
+//                           <MapPinned className="h-4 w-4" />
+//                           マップの矩形をクリックして開くこともできます
+//                         </div>
 
 //                         {(typeof r.subareasCount === 'number' || typeof r.spotsCount === 'number') && (
 //                           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -339,6 +398,7 @@
 // }
 
 
+
 // src/pages/Regions.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -374,18 +434,20 @@ type Region = {
   code?: string | null;
   subareasCount?: number;
   spotsCount?: number;
-  // NEW: geometry provided by backend (Polygon Feature or Geometry)
   geom?: any | null;
   geometry?: any | null;
 };
 
+// NEW: API stats shape
+type RegionStats = { regionId: string; total: number; busy: number; free: number };
+
 const ACCENTS = [
-  { bar: 'bg-rose-500',    ring: 'from-rose-500/15',   hex: '#f43f5e' },
-  { bar: 'bg-amber-500',   ring: 'from-amber-500/15',  hex: '#f59e0b' },
-  { bar: 'bg-emerald-500', ring: 'from-emerald-500/15',hex: '#10b981' },
-  { bar: 'bg-sky-500',     ring: 'from-sky-500/15',    hex: '#38bdf8' },
-  { bar: 'bg-violet-500',  ring: 'from-violet-500/15', hex: '#8b5cf6' },
-  { bar: 'bg-pink-500',    ring: 'from-pink-500/15',   hex: '#ec4899' },
+  { bar: 'bg-rose-500',    ring: 'from-rose-500/15',    hex: '#f43f5e' },
+  { bar: 'bg-amber-500',   ring: 'from-amber-500/15',   hex: '#f59e0b' },
+  { bar: 'bg-emerald-500', ring: 'from-emerald-500/15', hex: '#10b981' },
+  { bar: 'bg-sky-500',     ring: 'from-sky-500/15',     hex: '#38bdf8' },
+  { bar: 'bg-violet-500',  ring: 'from-violet-500/15',  hex: '#8b5cf6' },
+  { bar: 'bg-pink-500',    ring: 'from-pink-500/15',    hex: '#ec4899' },
 ];
 const pickAccent = (seed: string | undefined) => {
   const n = (seed ?? '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -405,7 +467,6 @@ function RegionSkeleton() {
   );
 }
 
-// tiny helper to highlight search matches
 const highlight = (text: string, q: string) => {
   if (!q) return text;
   const idx = text.toLowerCase().indexOf(q.toLowerCase());
@@ -432,14 +493,25 @@ export default function Regions() {
 
   const regions: Region[] = (data?.regions ?? []) as Region[];
 
+  // NEW: fetch region availability (total/free/busy)
+  const { data: statsData } = useQuery({
+    queryKey: ['region-stats'],
+    queryFn: async () => (await api.get('/api/stats/regions')).data,
+    refetchInterval: 10000,
+  });
+  const statsMap = useMemo(() => {
+    const m = new Map<string, RegionStats>();
+    (statsData?.regionStats ?? []).forEach((s: RegionStats) => m.set(s.regionId, s));
+    return m;
+  }, [statsData]);
+
   // UI state
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'code'>('name');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [activeIdx, setActiveIdx] = useState<number | null>(null); // ← sync with map
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
-  // debounce search for smoother typing
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 200);
     return () => clearTimeout(t);
@@ -460,13 +532,16 @@ export default function Regions() {
     return list;
   }, [regions, debouncedQ, sortBy]);
 
-  // Map features (rectangles) for regions
+  // Map features (keep card color; just add stats for badges)
   const features = useMemo(() => {
     return filtered
-      .map((r, i) => {
+      .map((r) => {
         const geom = (r as any).geom ?? (r as any).geometry;
         if (!geom) return null;
+
         const accent = pickAccent(r.id || r.code || r.name);
+        const st = statsMap.get(r.id);
+
         return {
           type: 'Feature',
           id: r.id,
@@ -474,13 +549,16 @@ export default function Regions() {
             id: r.id,
             name: r.name,
             code: r.code ?? '',
-            color: accent.hex, // ← map fill color matches card accent
+            color: accent.hex,            // ← always keep rectangle same color as card
+            total: st?.total ?? 0,        // for map badge
+            free: st?.free ?? 0,          // for map badge
+            busy: st?.busy ?? 0,          // not used by map, used in card
           },
-          geometry: geom, // MapHighlight sanitizes Feature/Geometry, rings, and lat-lon
+          geometry: geom,
         } as Feature<Polygon | MultiPolygon>;
       })
       .filter(Boolean) as Feature<Polygon | MultiPolygon>[];
-  }, [filtered]);
+  }, [filtered, statsMap]);
 
   const onCopy = async (text: string, regionId: string) => {
     if (!text) return;
@@ -488,9 +566,7 @@ export default function Regions() {
       await navigator.clipboard.writeText(text);
       setCopiedId(regionId);
       setTimeout(() => setCopiedId(null), 1000);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   };
 
   return (
@@ -502,7 +578,6 @@ export default function Regions() {
       {!isLoading && filtered.length > 0 && (
         <div className="mb-3">
           <MapHighlight
-            // give the map a stable but present key so it refreshes on data changes smoothly
             key={`regions-map-${filtered.length}`}
             features={features}
             selectedIndex={activeIdx ?? undefined}
@@ -510,8 +585,9 @@ export default function Regions() {
               const r = filtered[idx];
               if (r) navigate(`/r/${r.id}`);
             }}
-            
-            
+            // MapHighlight will keep the accent color because `color` is present,
+            // and still shows "free/total" badges using the stats above.
+            showAvailabilityBadges
           />
         </div>
       )}
@@ -586,7 +662,7 @@ export default function Regions() {
         </Card>
       </div>
 
-      {/* Error state */}
+      {/* Error / loading / empty states unchanged */}
       {error ? (
         <Card className="rounded-2xl p-6 text-sm">
           <div className="flex items-start gap-3">
@@ -608,7 +684,7 @@ export default function Regions() {
         </div>
       ) : filtered.length === 0 ? (
         <Card className="rounded-2xl p-8">
-          <div className="flex flex-col items-center text-center gap-2">
+          <div className="flex flex-col items-center text中心 gap-2">
             <Sparkles className="h-6 w-6 text-muted-foreground" />
             <div className="text-sm text-muted-foreground">
               “{debouncedQ}” に一致する地域はありません。
@@ -637,6 +713,8 @@ export default function Regions() {
             {filtered.map((r, idx) => {
               const accent = pickAccent(r.id || r.code || r.name);
               const code = r.code || '—';
+              const st = statsMap.get(r.id); // NEW
+
               return (
                 <motion.div
                   key={r.id}
@@ -695,6 +773,18 @@ export default function Regions() {
                                 スポット: <span className="tabular-nums">{r.spotsCount}</span>
                               </span>
                             )}
+                          </div>
+                        )}
+
+                        {/* NEW: availability chips */}
+                        {st && (
+                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                            <span className="px-2 py-0.5 rounded-full bg-background/60 border">
+                              空き / 合計: <span className="tabular-nums">{st.free}/{st.total}</span>
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-background/60 border">
+                              予約済: <span className="tabular-nums">{st.busy}</span>
+                            </span>
                           </div>
                         )}
 

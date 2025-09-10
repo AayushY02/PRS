@@ -16,6 +16,8 @@ import { Copy, Check, Sparkles, MapPinned, Filter, Grid2X2 } from 'lucide-react'
 
 import type { Feature, Polygon, GeoJsonProperties, MultiPolygon } from 'geojson';
 
+type SubareaStats = { subareaId: string; total: number; busy: number; free: number };
+
 type Subarea = {
   id: string;
   name: string;
@@ -80,6 +82,20 @@ export default function Subareas() {
 
   const subareas: Subarea[] = (data?.subareas ?? []) as Subarea[];
 
+   // NEW: availability stats (light polling; upgrade to SSE later if desired)
+  const { data: statsData } = useQuery({
+    queryKey: ['subarea-stats', regionId],
+    queryFn: async () => (await api.get(`/api/stats/subareas/by-region/${regionId}`)).data,
+    enabled: !!regionId,
+    refetchInterval: 10000,
+  });
+  // NEW: map for quick lookup
+  const statsMap = useMemo(() => {
+    const m = new Map<string, SubareaStats>();
+    (statsData?.subareaStats ?? []).forEach((s: SubareaStats) => m.set(s.subareaId, s));
+    return m;
+  }, [statsData]);
+
   // Accent seeded by region
   const regionSeed = region?.id || region?.code || region?.name || String(regionId);
   const regionAccent = pickAccent(regionSeed);
@@ -110,6 +126,7 @@ export default function Subareas() {
         const geom = (sa as any).geom ?? (sa as any).geometry;
         if (!geom) return null;
         const color = sa.colorHex ?? palette[i % palette.length];
+        const st = statsMap.get(sa.id); 
         return {
           type: 'Feature',
           id: sa.id,
@@ -118,12 +135,14 @@ export default function Subareas() {
             name: sa.name,           // <- label text
             code: sa.code ?? '',
             color,                   // <- fill/line and label color
+            total: st?.total ?? 0,  // NEW: for map badge + color ramp
+            free: st?.free ?? 0,    // NEW
           },
           geometry: geom,            // the MapHighlight sanitizes (Feature/Polygon/MultiPolygon)
         } as Feature<Polygon | MultiPolygon>;
       })
       .filter(Boolean) as Feature<Polygon | MultiPolygon>[];
-  }, [filtered]);
+  }, [filtered, statsMap]);
 
   const images = useMemo(
     () => filtered.map(sa => sa.highlightImageUrl).filter(Boolean) as string[],
