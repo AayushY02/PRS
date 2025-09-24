@@ -445,6 +445,12 @@ const parseRegionOrdinalFromCode = (code: string | null): number => {
   return 1;
 };
 
+const japaneseDirection = (d: string | null | undefined): string => {
+  if (d === 'north') return '北側方向';
+  if (d === 'south') return '南側方向';
+  return '';
+};
+
 const formatSpotLabel = (regionCode: string | null, spotOrder: number | null): string => {
   const regionOrdinal = parseRegionOrdinalFromCode(regionCode);
   const circle = toCircledNumber(regionOrdinal);
@@ -458,7 +464,16 @@ const formatSubSpotLabel = (regionCode: string | null, spotOrder: number | null,
   return `${spotLabel}（${order}台目）`;
 };
 
-const BOOKING_EXPORT_HEADERS = ['ID', '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', '\u958b\u59cb\u6642\u523b', '\u7d42\u4e86\u6642\u523b', '\u8eca\u7a2e', '\u30e1\u30e2'];
+// const BOOKING_EXPORT_HEADERS = ['ID', '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', '\u958b\u59cb\u6642\u523b', '\u7d42\u4e86\u6642\u523b', '\u8eca\u7a2e', '\u30e1\u30e2'];
+const BOOKING_EXPORT_HEADERS = [
+  'ID',
+  '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', // スポット番号
+  '\u958b\u59cb\u6642\u523b',             // 開始時刻
+  '\u7d42\u4e86\u6642\u523b',             // 終了時刻
+  '\u8eca\u7a2e',                         // 車種
+  '\u99d0\u8eca\u65b9\u5411',             // 駐車方向  ← NEW
+  '\u30e1\u30e2',                         // メモ
+];
 
 type BookingExportScope = 'all' | 'active' | 'completed' | 'user-all' | 'user-active' | 'spot';
 
@@ -512,6 +527,7 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
       LOWER(b.time_range) AS start_time,
       UPPER(b.time_range) AS end_time,
       b.vehicle_type,
+      b.direction,   
       COALESCE(b.comment, '') AS memo,
       u.email AS user_email,
       r.code AS region_code,
@@ -535,6 +551,7 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
     start_time: string | null;
     end_time: string | null;
     vehicle_type: string | null;
+    direction: 'north' | 'south' | null;
     memo: string | null;
     user_email: string | null;
     region_code: string | null;
@@ -602,7 +619,9 @@ bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) 
       formatDateTimeISO(row.start_time, ''),
       formatBookingEnd(row.end_time),
       japaneseVehicleType(row.vehicle_type),
+      japaneseDirection(row.direction),
       row.memo ?? '',
+
     ];
   });
 
