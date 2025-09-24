@@ -57,6 +57,20 @@ async function buildSpotsPayload(
     activeBySub.set(r.sub_spot_id, { user_id: r.user_id, start_time: r.start_time });
   }
 
+  const completedRows = await db.execute(sql`
+    SELECT ss.spot_id, COUNT(*)::int AS completed
+    FROM bookings b
+    JOIN sub_spots ss ON ss.id = b.sub_spot_id
+    WHERE ss.spot_id IN (${parentIdList})
+      AND b.status = 'completed'
+    GROUP BY ss.spot_id
+  `);
+
+  const completedBySpot = new Map<string, number>();
+  for (const row of (completedRows as any).rows ?? []) {
+    completedBySpot.set(row.spot_id, Number(row.completed) || 0);
+  }
+
   return parentSpots.map((p) => {
     const subs = subSpotsByParent.get(p.id) ?? [];
     const withState = subs.map((s) => {
@@ -73,11 +87,15 @@ async function buildSpotsPayload(
         myStartTime: isMineNow && a ? a.start_time : null,
       };
     });
+    const activeCount = withState.filter(s => s.isBusyNow).length;
+    const completedCount = completedBySpot.get(p.id) ?? 0;
     return {
       id: p.id,
       subareaId: p.subareaId,
       code: p.code,
       geom: p.geom,
+      activeCount,
+      completedCount,
       subSpots: withState,
     };
   });

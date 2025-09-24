@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SpotBookingSheet from '../components/SpotBookingSheet';
 import { Card, CardContent } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
-import { Clock, CheckCircle2, MinusCircle, Car } from 'lucide-react';
+import { Clock, CheckCircle2 } from 'lucide-react';
 import maplibregl, { MapLayerMouseEvent, Map as MLMap } from 'maplibre-gl';
 
 // --- Turf ---
@@ -50,6 +50,8 @@ type ParentSpotRow = {
   code: string;
   geom?: any | null; // optional parent polygon for future use
   subSpots: SubSpotRow[];
+  activeCount?: number;
+  completedCount?: number;
   displayLabel?: string;
   order?: number;
 };
@@ -77,7 +79,6 @@ function formatElapsed(startISO: string | null) {
   const ss = Math.floor(s % 60).toString().padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
 }
-type FilterMode = 'all' | 'available' | 'mine';
 
 // ===== Map helpers =====
 const ENV_STYLE = import.meta.env.VITE_MAP_STYLE as string | undefined;
@@ -244,11 +245,12 @@ function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
         spotId: spot.id,
         code: spot.code,
         name: spot.displayLabel ?? spot.code,
-        subareaId: spot.subareaId,
+        // subareaId: spot.subareaId,
         total: subSpots.length,
         busy: busyCount,
         free: freeCount,
         mine: mineCount,
+        completedCount: spot.completedCount ?? 0,
         color: fallbackColor,
       },
     });
@@ -317,6 +319,7 @@ function buildPreviewFeatures(
 
     const state = s.isMineNow ? 'mine' : s.isBusyNow ? 'busy' : 'available';
     const fill = state === 'mine' ? COLOR_MINE : state === 'busy' ? COLOR_BUSY : COLOR_AVAIL;
+    const busyValue = state === 'mine' || state === 'busy' ? 1 : 0;
     const poly = polygon([ring], {
       type: 'slot',
       code: s.code,
@@ -324,6 +327,8 @@ function buildPreviewFeatures(
       spotId: s.spotId ?? s.id,
       state,
       color: fill,
+      busy: busyValue,
+      total: 1,
     }) as Feature<Polygon>;
     poly.id = s.spotId ?? s.id;
     slots.push(poly);
@@ -380,7 +385,7 @@ export default function Spots() {
   const regionImageAlt = region?.name ? `${region.name} レイアウト` : `地域${regionCircle} レイアウト`;
   const enableMapPreview = !regionImage;
 
-  const parents: ParentSpotRow[] = (data?.spots ?? []) as any;
+  const parents = (data?.spots ?? []) as ParentSpotRow[];
   const flatAll = useMemo(() =>
     parents.flatMap(p => p.subSpots.map((s) => ({ ...s, spotId: p.id }))),
     [parents]
@@ -390,8 +395,6 @@ export default function Spots() {
 
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<SubSpotRow | null>(null);
-  const [filter, setFilter] = useState<FilterMode>('all');
-
   const subSpotById = useMemo(() => {
     const m = new Map<string, SubSpotRow>();
     flatAll.forEach(s => m.set(s.id, s));
@@ -407,14 +410,12 @@ export default function Spots() {
     mine: flatAll.filter(s => s.isMineNow).length,
     available: flatAll.filter(s => !s.isBusyNow).length,
   }), [flatAll]);
+  const completedTotal = useMemo(() => parents.reduce((sum, spot) => sum + (spot.completedCount ?? 0), 0), [parents]);
+  const activeCount = counts.busy;
   const regionLabel = region?.name ?? region?.code ?? null;
   const subtitleText = regionLabel
     ? `${regionLabel} · 自刁E ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`
     : `自刁E ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`;
-
-  const filterFn = (s: SubSpotRow) =>
-    filter === 'available' ? !s.isBusyNow :
-      filter === 'mine' ? s.isMineNow : true;
 
   const filteredParents = useMemo(() => {
     return parents.map((p, parentIdx) => {
@@ -425,23 +426,20 @@ export default function Spots() {
         displayLabel: `${parentLabel}・${subIdx + 1}台目`,
         slotOrder: subIdx + 1,
       }));
-      const visibleSubSpots = mappedSubSpots.filter(filterFn);
       return {
         ...p,
         displayLabel: parentLabel,
         order: parentIdx + 1,
-        subSpots: visibleSubSpots,
+        subSpots: mappedSubSpots,
       };
-    }).filter(p => p.subSpots.length > 0 || filter === 'all');
-  }, [parents, filter, regionCircle]);
+    });
+  }, [parents, regionCircle]);
 
   const origParentMap = useMemo(() => {
     const m = new Map<string, ParentSpotRow>();
     parents.forEach(p => m.set(p.id, p));
     return m;
   }, [parents]);
-
-  const filteredFlat = useMemo(() => flatAll.filter(filterFn), [flatAll, filter]);
 
   const openSheet = (s: SubSpotRow) => { setChosen(s); setOpen(true); };
   const closeSheet = () => setOpen(false);
@@ -452,8 +450,8 @@ export default function Spots() {
   const [styleReady, setStyleReady] = useState(false);
 
   const previewFC = useMemo<FeatureCollection<LineString | Polygon>>(
-    () => buildPreviewFeatures(regionId ?? 'seed', filteredFlat),
-    [regionId, filteredFlat]
+    () => buildPreviewFeatures(regionId ?? 'seed', flatAll),
+    [regionId, flatAll]
   );
 
   const ensureContainerReady = (el: HTMLElement | null) => {
@@ -668,7 +666,18 @@ export default function Spots() {
           ['==', ['geometry-type'], 'Polygon'],
           ['==', ['geometry-type'], 'MultiPolygon'],
         ],
-        layout: { 'text-field': ['get', 'code'], 'text-size': 10, 'text-allow-overlap': true },
+        layout: {
+          'text-field': [
+            'concat',
+            ['coalesce', ['get', 'name'], ['get', 'code']],
+            ' ',
+            ['to-string', ['coalesce', ['get', 'busy'], 0]],
+            '/',
+            ['to-string', ['coalesce', ['get', 'total'], 0]],
+          ],
+          'text-size': 10,
+          'text-allow-overlap': true,
+        },
         paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
       });
 
@@ -729,9 +738,6 @@ export default function Spots() {
   // ===========================
   // ===== UI BELOW THE MAP ====
   // ===========================
-  // const [filterLocal, setFilterLocal] = useState<FilterMode>(filter);
-  // useEffect(() => { setFilterLocal(filterLocal); }, [filterLocal]); // keep TS quiet
-
   return (
     <>
       <TopTitle title="駐車スペース" subtitle={subtitleText} />
@@ -766,41 +772,37 @@ export default function Spots() {
       </div>
 
       {/* Compact metric chips */}
-      <div className="mb-4 grid grid-cols-3 gap-2">
+      <div className="mb-4 grid grid-cols-2 gap-2">
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border border-blue-200 dark:border-blue-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-1">
-              <Car className="h-4 w-4" />
-            </div>
-            <div className="text-base font-semibold tabular-nums leading-none">{counts.total}</div>
-            <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">合計</div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-xl shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border border-emerald-200 dark:border-emerald-800">
-          <CardContent className="flex flex-col items-center justify-center py-2 px-2">
-            <div className="h-7 w-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1">
               <CheckCircle2 className="h-4 w-4" />
             </div>
-            <div className="text-base font-semibold tabular-nums leading-none">{counts.mine}</div>
-            <div className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-0.5">鉱山</div>
+            <div className="text-base font-semibold tabular-nums leading-none">{completedTotal}</div>
+            <div className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">路駐完了</div>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800">
           <CardContent className="flex flex-col items-center justify-center py-2 px-2">
             <div className="h-7 w-7 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-1">
-              <MinusCircle className="h-4 w-4" />
+              <Clock className="h-4 w-4" />
             </div>
-            <div className="text-base font-semibold tabular-nums leading-none">{counts.available}</div>
-            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">利用可能</div>
+            <div className="text-base font-semibold tabular-nums leading-none">{activeCount}</div>
+            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">路駐中</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filter bar */}
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => setFilter('all')}>すべて</Button>
-        <Button size="sm" variant={filter === 'available' ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => setFilter('available')}>空き</Button>
-        <Button size="sm" variant={filter === 'mine' ? 'default' : 'outline'} className="rounded-full h-9" onClick={() => setFilter('mine')}>自分</Button>
+      <div className="mb-3 grid grid-cols-1 gap-2">
+        <Button
+          size="sm"
+          variant="default"
+          className="rounded-full h-9"
+          disabled
+        >
+          すべて
+        </Button>
       </div>
 
       {/* Parent → Sub-spot groups (Accordion) */}

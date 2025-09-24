@@ -55,23 +55,36 @@ type Props = {
   myStartTime?: string | null;
 };
 
-function useTicker(activeSince?: string | null) {
+function useActiveTimer(activeSince?: string | null) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!activeSince) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, [activeSince]);
   return useMemo(() => {
-    if (!activeSince) return null;
-    const ms = Date.now() - new Date(activeSince).getTime();
-    if (ms < 0 || Number.isNaN(ms)) return null;
-    const s = Math.floor(ms / 1000);
-    const hh = Math.floor(s / 3600).toString().padStart(2, '0');
-    const mm = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
-    const ss = Math.floor(s % 60).toString().padStart(2, '0');
-    return `${hh}:${mm}:${ss}`;
+    if (!activeSince) {
+      return { elapsed: null as string | null, current: null as Date | null };
+    }
+    const start = new Date(activeSince);
+    if (Number.isNaN(start.getTime())) {
+      return { elapsed: null, current: null };
+    }
+    const current = new Date(now);
+    const diffMs = Math.max(0, current.getTime() - start.getTime());
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const hh = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+    const mm = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+    const ss = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
+    return { elapsed: `${hh}:${mm}:${ss}`, current };
   }, [now, activeSince]);
+}
+
+function formatClockTime(input: string | Date | null, fallback = '--:--:--') {
+  if (!input) return fallback;
+  const date = typeof input === 'string' ? new Date(input) : input;
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleTimeString('ja-JP', { hour12: false });
 }
 
 const NOTE_LIMIT = 140;
@@ -96,10 +109,13 @@ export default function SpotBookingSheet({
   const [submitting, setSubmitting] = useState<null | 'start' | 'end'>(null);
   const [copied, setCopied] = useState(false);
 
-  const elapsed = useTicker(myStartTime ?? null);
+  const { elapsed: elapsedDuration, current: currentMoment } = useActiveTimer(myStartTime ?? null);
   const remaining = Math.max(0, NOTE_LIMIT - comment.length);
   const charPct = ((NOTE_LIMIT - remaining) / NOTE_LIMIT) * 100;
   const isActive = !!myStartTime;
+  const startTimeDisplay = formatClockTime(myStartTime ?? null);
+  const endTimeDisplay = formatClockTime(currentMoment ?? null);
+  const elapsedDisplay = elapsedDuration ?? '00:00:00';
 
   useEffect(() => {
     if (!open) {
@@ -225,18 +241,34 @@ export default function SpotBookingSheet({
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                {isActive ? '経過時間' : '—'}
+                {isActive ? '現在時刻' : '待機中'}
               </div>
             </div>
             <Separator />
-            <div className="px-4 py-4">
-              <div className="font-mono text-3xl tracking-wide">
-                {isActive ? elapsed ?? '00:00:00' : '00:00:00'}
+            <div className="px-4 py-4 space-y-3">
+              <div>
+                <div className="text-xs text-muted-foreground">開始時刻</div>
+                <div className="font-mono text-2xl tracking-tight">
+                  {isActive && myStartTime ? `${startTimeDisplay}〜` : '--:--:--'}
+                </div>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <div>
+                <div className="text-xs text-muted-foreground">終了時刻</div>
+                <div className="font-mono text-2xl tracking-tight">
+                  {isActive && myStartTime ? endTimeDisplay : '--:--:--'}
+                </div>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">経過時間</span>
+                <span className="font-mono text-3xl tracking-wide">
+                  {isActive && myStartTime ? elapsedDisplay : '00:00:00'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
                 {isActive
-                  ? 'この予約が開始されてからの時間です。'
-                  : 'いつでも予約を開始または終了できます。'}
+                  ? '開始時刻と現在時刻、その間の経過時間を表示しています。'
+                  : '開始すると開始時刻・終了時刻・経過時間が表示されます。'}
               </p>
             </div>
           </Card>
