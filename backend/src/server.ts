@@ -3,8 +3,6 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { ENV } from './env.js';
 import { authRouter } from './routes/auth.routes';
-
-import { subareasRouter } from './routes/subareas.routes';
 import { spotsRouter } from './routes/spots.routes';
 import { bookingsRouter } from './routes/bookings.routes';
 import regionsRouter from './routes/regions.routes.js';
@@ -12,7 +10,6 @@ import adminRegionsRouter from './routes/regions.admin.routes.js';
 import { authOptional } from './middleware/authOptional';
 import { liveStream } from './live.js';
 import statsRouter from './routes/stats.routes.js';
-
 
 const app = express();
 app.use(express.json());
@@ -28,9 +25,8 @@ app.use(cors({
 
 app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
-app.use('/api/regions', regionsRouter); 
+app.use('/api/regions', regionsRouter);
 app.use('/api/admin/regions', adminRegionsRouter);
-app.use('/api/subareas', subareasRouter);
 app.use('/api/spots', spotsRouter);
 app.use('/api/bookings', bookingsRouter);
 app.get('/api/live', authOptional, liveStream);

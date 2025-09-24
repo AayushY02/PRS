@@ -33,8 +33,7 @@
 //   id: string;
 //   name: string;
 //   code?: string | null;
-//   subareasCount?: number;
-//   spotsCount?: number;
+// //   spotsCount?: number;
 //   // NEW: geometry provided by backend (Polygon Feature or Geometry)
 //   geom?: any | null;
 //   geometry?: any | null;
@@ -432,7 +431,6 @@ type Region = {
   id: string;
   name: string;
   code?: string | null;
-  subareasCount?: number;
   spotsCount?: number;
   geom?: any | null;
   geometry?: any | null;
@@ -760,21 +758,6 @@ export default function Regions() {
                           <MapPinned className="h-4 w-4" />
                           マップの矩形をクリックして開くこともできます
                         </div>
-
-                        {(typeof r.subareasCount === 'number' || typeof r.spotsCount === 'number') && (
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                            {typeof r.subareasCount === 'number' && (
-                              <span className="px-2 py-0.5 rounded-full bg-background/60 border">
-                                サブエリア: <span className="tabular-nums">{r.subareasCount}</span>
-                              </span>
-                            )}
-                            {typeof r.spotsCount === 'number' && (
-                              <span className="px-2 py-0.5 rounded-full bg-background/60 border">
-                                スポット: <span className="tabular-nums">{r.spotsCount}</span>
-                              </span>
-                            )}
-                          </div>
-                        )}
 
                         {/* NEW: availability chips */}
                         {st && (

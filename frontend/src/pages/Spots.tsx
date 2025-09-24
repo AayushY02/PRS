@@ -269,7 +269,7 @@ function buildPreviewFeatures(
 }
 
 export default function Spots() {
-  const { subareaId } = useParams();
+  const { regionId } = useParams<{ regionId: string }>();
   const qc = useQueryClient();
   const liveStatesRef = useRef(new Map<string, 'mine' | 'busy' | 'available'>());
 
@@ -280,10 +280,12 @@ export default function Spots() {
   const prevHoverIdRef = useRef<string | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['spots', subareaId],
-    queryFn: async () => (await api.get(`/api/spots/by-subarea/${subareaId}`)).data,
-    enabled: !!subareaId,
+    queryKey: ['spots', regionId],
+    queryFn: async () => (await api.get(`/api/spots/by-region/${regionId}`)).data,
+    enabled: !!regionId,
   });
+
+  const region = data?.region as { id?: string; name?: string | null; code?: string | null } | undefined;
 
   const { data: me } = useQuery({
     queryKey: ['me'],
@@ -325,6 +327,10 @@ export default function Spots() {
     mine: flatAll.filter(s => s.isMineNow).length,
     available: flatAll.filter(s => !s.isBusyNow).length,
   }), [flatAll]);
+  const regionLabel = region?.name ?? region?.code ?? null;
+  const subtitleText = regionLabel
+    ? `${regionLabel} · 自刁E ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`
+    : `自刁E ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`;
 
   const filterFn = (s: SubSpotRow) =>
     filter === 'available' ? !s.isBusyNow :
@@ -354,8 +360,8 @@ export default function Spots() {
   const [styleReady, setStyleReady] = useState(false);
 
   const previewFC = useMemo<FeatureCollection<LineString | Polygon>>(
-    () => buildPreviewFeatures(subareaId ?? 'seed', filteredFlat),
-    [subareaId, filteredFlat]
+    () => buildPreviewFeatures(regionId ?? 'seed', filteredFlat),
+    [regionId, filteredFlat]
   );
 
   const ensureContainerReady = (el: HTMLElement | null) => {
@@ -617,13 +623,13 @@ export default function Spots() {
         }
 
         // refresh list/counters in background
-        qc.invalidateQueries({ queryKey: ['spots', subareaId] });
+        qc.invalidateQueries({ queryKey: ['spots', regionId] });
       } catch { }
     };
 
     es.addEventListener('booking', onBooking as any);
     return () => { es.removeEventListener('booking', onBooking as any); es.close(); };
-  }, [myUserId, qc, subareaId]);
+  }, [myUserId, qc, regionId]);
 
   // ===========================
   // ===== UI BELOW THE MAP ====
@@ -633,7 +639,7 @@ export default function Spots() {
 
   return (
     <>
-      <TopTitle title="駐車スペース" subtitle={`自分: ${counts.mine}件 · 使用中: ${counts.busy}/${counts.total}`} />
+      <TopTitle title="駐車スペース" subtitle={subtitleText} />
 
       {/* Map preview */}
       <div className="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden border mb-3 z-0">
@@ -806,8 +812,8 @@ export default function Spots() {
 
             setChosen(null);
             closeSheet();
-            qc.invalidateQueries({ queryKey: ['spots', subareaId] });
-            qc.refetchQueries({ queryKey: ['spots', subareaId], type: 'active' });
+            qc.invalidateQueries({ queryKey: ['spots', regionId] });
+            qc.refetchQueries({ queryKey: ['spots', regionId], type: 'active' });
             qc.invalidateQueries({ queryKey: ['my-bookings'] });
           }}
         />
