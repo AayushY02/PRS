@@ -2,6 +2,7 @@
 import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, integer, unique, customType, jsonb } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 type GJ = any;
+export const directionEnum = pgEnum('direction', ['north', 'south']);
 
 // We keep tstzrange as a raw SQL data type. We'll use raw SQL in queries when needed.
 const tstzrange = customType<{ data: string; driverData: string }>({
@@ -86,7 +87,7 @@ export const bookings = pgTable('bookings', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   // CHANGED: link to sub-spot instead of “spot”
   subSpotId: uuid('sub_spot_id').notNull().references(() => subSpots.id, { onDelete: 'cascade' }),
-
+  direction: directionEnum('direction'), 
   // time range: [start, end) — end open while active; you already use tstzrange in UI
   // timeRange: ("time_range").notNull(),
   timeRange: tstzrange('time_range').notNull(),

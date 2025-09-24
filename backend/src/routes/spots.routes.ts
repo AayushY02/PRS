@@ -45,16 +45,16 @@ async function buildSpotsPayload(
 
   const subSpotIdList = sql.join(subSpotIds.map((id) => sql`${id}::uuid`), sql`, `);
   const activeRows = await db.execute(sql`
-    SELECT b.sub_spot_id, b.user_id, lower(b.time_range) AS start_time
+    SELECT b.sub_spot_id, b.user_id, lower(b.time_range) AS start_time , b.direction
     FROM bookings b
     WHERE b.sub_spot_id IN (${subSpotIdList})
       AND b.status = 'active'
       AND NOW() <@ b.time_range
   `);
 
-  const activeBySub = new Map<string, { user_id: string; start_time: string }>();
+  const activeBySub = new Map<string, { user_id: string; start_time: string, direction: 'north' | 'south' | null  }>();
   for (const r of (activeRows as any).rows ?? []) {
-    activeBySub.set(r.sub_spot_id, { user_id: r.user_id, start_time: r.start_time });
+    activeBySub.set(r.sub_spot_id, { user_id: r.user_id, start_time: r.start_time, direction: r.direction });
   }
 
   const completedRows = await db.execute(sql`
@@ -85,6 +85,7 @@ async function buildSpotsPayload(
         isBusyNow,
         isMineNow,
         myStartTime: isMineNow && a ? a.start_time : null,
+        myDirection: isMineNow && a ? a.direction : 'north', // ✅ NEW
       };
     });
     const activeCount = withState.filter(s => s.isBusyNow).length;

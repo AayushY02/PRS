@@ -116,6 +116,7 @@ export default function SpotBookingSheet({
   const startTimeDisplay = formatClockTime(myStartTime ?? null);
   const endTimeDisplay = formatClockTime(currentMoment ?? null);
   const elapsedDisplay = elapsedDuration ?? '00:00:00';
+  const [direction, setDirection] = useState<'north' | 'south'>('north');
 
   useEffect(() => {
     if (!open) {
@@ -126,6 +127,7 @@ export default function SpotBookingSheet({
       setCopied(false);
       setError(null);
       setEndDialogOpen(false);
+      setDirection('north');
     }
   }, [open]);
 
@@ -137,6 +139,7 @@ export default function SpotBookingSheet({
         subSpotId,
         vehicleType: vehicle,
         comment: comment.trim() || null,
+        direction,
       });
       onSuccess();
       onOpenChange(false);
@@ -176,7 +179,7 @@ export default function SpotBookingSheet({
   };
 
   return (
- 
+
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
@@ -326,6 +329,33 @@ export default function SpotBookingSheet({
               disabled={isActive}
             />
             <Progress value={charPct} className="h-1.5" />
+
+            <div className="space-y-2">
+              <Label className="text-sm">駐車方向 <Badge variant="secondary">必須</Badge></Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={direction === 'north' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setDirection('north')}
+                  disabled={isActive}
+                >
+                  北側方向
+                </Button>
+                <Button
+                  type="button"
+                  variant={direction === 'south' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setDirection('south')}
+                  disabled={isActive}
+                >
+                  南側方向
+                </Button>
+              </div>
+              {!direction && (
+                <p className="text-xs text-muted-foreground">開始前にいずれかを選択してください。</p>
+              )}
+            </div>
             {/* <div className="flex flex-wrap gap-2 pt-1">
               {QUICK_NOTES.map((q) => (
                 <Button

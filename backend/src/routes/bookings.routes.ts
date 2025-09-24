@@ -1,4 +1,4 @@
-
+﻿
 
 
 
@@ -208,6 +208,7 @@ const CreateBooking = z.object({
   endTime: z.string().datetime(),
   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
+  direction: z.enum(['north', 'south']),
 }).refine(v => new Date(v.endTime) > new Date(v.startTime), {
   message: 'End must be after start',
 });
@@ -217,17 +218,18 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
   const parsed = CreateBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { subSpotId, startTime, endTime, comment, vehicleType } = parsed.data;
+  const { subSpotId, startTime, endTime, comment, vehicleType, direction } = parsed.data;
 
   try {
     const r = await db.execute(raw`
-      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, status)
+      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, direction ,vehicle_type, status)
       VALUES (
         ${userId}::uuid,
         ${subSpotId}::uuid,
         tstzrange(${startTime}::timestamptz, ${endTime}::timestamptz, '[)'),
         ${comment ?? null},
         ${vehicleType ?? 'normal'},
+         ${direction}::direction,
         'active'
       )
       RETURNING id, (NOW() <@ time_range) AS active_now, lower(time_range) AS start_time
@@ -566,7 +568,7 @@ bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) 
       .from(schema.users)
       .where(eq(schema.users.id, userId))
       .limit(1);
-            const userRecord = userRows[0];
+    const userRecord = userRows[0];
     if (!userRecord) {
       return res.status(404).json({ error: '\u6307\u5b9a\u3055\u308c\u305f\u30e6\u30fc\u30b6\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002' });
     }
