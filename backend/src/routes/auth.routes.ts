@@ -16,8 +16,8 @@ const isProd = ENV.NODE_ENV === 'production';
 const setCookie = (res: any, token: string) => {
   res.cookie(ENV.COOKIE_NAME, token, {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
     maxAge: 60 * 60 * 1000 // << 1 hour in ms
   });
