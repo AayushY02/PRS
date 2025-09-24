@@ -13,6 +13,7 @@ import usersRouter from './routes/users.routes.js';
 import statsRouter from './routes/stats.routes.js';
 
 const app = express();
+app.set('trust proxy', 1)
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
@@ -23,7 +24,6 @@ app.use(cors({
   },
   credentials: true,
 }));
-
 app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
 app.use('/api/regions', regionsRouter);
