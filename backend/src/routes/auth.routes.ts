@@ -18,6 +18,7 @@ const setCookie = (res: any, token: string) => {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? 'none' : 'lax',
+    
     path: '/',
     maxAge: 60 * 60 * 1000 // << 1 hour in ms
   });
