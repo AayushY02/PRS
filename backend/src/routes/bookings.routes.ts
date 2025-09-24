@@ -13,7 +13,7 @@
 // export const bookingsRouter = Router();
 
 // /**
-//  * Create a fixed booking (start/end). Kept for “manual” reservations if you still need it.
+//  * Create a fixed booking (start/end). Kept for 窶徇anual窶・reservations if you still need it.
 //  * Uses sub-spot and (optionally) vehicleType.
 //  */
 // const CreateBooking = z.object({
@@ -56,7 +56,7 @@
 
 // /**
 //  * START an open-ended booking now (meter starts running).
-//  * Accepts vehicleType (普通/大型/その他).
+//  * Accepts vehicleType (譎ｮ騾・螟ｧ蝙・縺昴・莉・.
 //  */
 // const StartBooking = z.object({
 //   subSpotId: z.string().uuid(),
@@ -98,7 +98,7 @@
 // });
 
 // /**
-//  * END the current user’s active booking for a sub-spot (upper-bound the range to now).
+//  * END the current user窶冱 active booking for a sub-spot (upper-bound the range to now).
 //  */
 // const EndBooking = z.object({
 //   subSpotId: z.string().uuid(),
@@ -190,15 +190,16 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { db, schema } from '../db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { sql as raw } from 'drizzle-orm';
 import { authRequired } from '../middleware/authRequired'; // keeps req.userId
 import { broadcastBooking } from '../live';
+import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseVehicleType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
 
 export const bookingsRouter = Router();
 
 /**
- * Create a fixed booking (start/end). Kept for “manual” reservations if you still need it.
+ * Create a fixed booking (start/end). Kept for 窶徇anual窶・reservations if you still need it.
  * Uses sub-spot and (optionally) vehicleType.
  */
 const CreateBooking = z.object({
@@ -255,7 +256,7 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
 
 /**
  * START an open-ended booking now (meter starts running).
- * Accepts vehicleType (普通/大型/その他).
+ * Accepts vehicleType (譎ｮ騾・螟ｧ蝙・縺昴・莉・.
  */
 const StartBooking = z.object({
   subSpotId: z.string().uuid(),
@@ -304,7 +305,7 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
 });
 
 /**
- * END the current user’s active booking for a sub-spot (upper-bound the range to now).
+ * END the current user窶冱 active booking for a sub-spot (upper-bound the range to now).
  */
 const EndBooking = z.object({
   subSpotId: z.string().uuid(),
@@ -417,3 +418,222 @@ bookingsRouter.delete('/:id', authRequired, async (req, res) => {
     res.status(500).json({ error: 'Failed to cancel booking' });
   }
 });
+const CIRCLED_DIGITS = [
+  '\u2460', '\u2461', '\u2462', '\u2463', '\u2464',
+  '\u2465', '\u2466', '\u2467', '\u2468', '\u2469',
+  '\u246A', '\u246B', '\u246C', '\u246D', '\u246E',
+  '\u246F', '\u2470', '\u2471', '\u2472', '\u2473'
+];
+
+const toCircledNumber = (n: number): string => {
+  const value = n >= 1 && n <= CIRCLED_DIGITS.length ? CIRCLED_DIGITS[n - 1] : undefined;
+  return value ?? `(${n})`;
+};
+
+const parseRegionOrdinalFromCode = (code: string | null): number => {
+  if (!code) return 1;
+  const matches = code.match(/\d+/g);
+  if (matches && matches.length > 0) {
+    const last = matches[matches.length - 1];
+    if (typeof last === 'string' && last.length > 0) {
+      const parsed = parseInt(last, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+  return 1;
+};
+
+const formatSpotLabel = (regionCode: string | null, spotOrder: number | null): string => {
+  const regionOrdinal = parseRegionOrdinalFromCode(regionCode);
+  const circle = toCircledNumber(regionOrdinal);
+  const spotNumber = spotOrder && spotOrder > 0 ? spotOrder : 1;
+  return `スポット${circle}-${spotNumber}`;
+};
+
+const formatSubSpotLabel = (regionCode: string | null, spotOrder: number | null, subspotOrder: number | null): string => {
+  const spotLabel = formatSpotLabel(regionCode, spotOrder);
+  const order = subspotOrder && subspotOrder > 0 ? subspotOrder : 1;
+  return `${spotLabel}（${order}台目）`;
+};
+
+const BOOKING_EXPORT_HEADERS = ['ID', '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', '\u958b\u59cb\u6642\u523b', '\u7d42\u4e86\u6642\u523b', '\u8eca\u7a2e', '\u30e1\u30e2'];
+
+type BookingExportScope = 'all' | 'active' | 'completed' | 'user-all' | 'user-active' | 'spot';
+
+const BookingExportQuery = z.object({
+  scope: z.enum(['all', 'active', 'completed', 'user-all', 'user-active', 'spot']).default('all'),
+  format: z.enum(['csv', 'xlsx']).default('csv'),
+  userId: z.string().uuid().optional(),
+  spotId: z.string().uuid().optional(),
+});
+
+const BOOKING_FILENAME_BASE: Record<BookingExportScope, string> = {
+  all: '\u4e88\u7d04_\u5168\u4ef6',
+  active: '\u4e88\u7d04_\u9032\u884c\u4e2d',
+  completed: '\u4e88\u7d04_\u5b8c\u4e86',
+  'user-all': '\u4e88\u7d04_\u5229\u7528\u8005\u5225',
+  'user-active': '\u4e88\u7d04_\u5229\u7528\u8005\u5225_\u9032\u884c\u4e2d',
+  spot: '\u4e88\u7d04_\u30b9\u30dd\u30c3\u30c8\u5225',
+};
+
+async function fetchBookingExportRows(scope: BookingExportScope, userId?: string, spotId?: string) {
+  const filters: Array<ReturnType<typeof sql>> = [];
+
+  if (scope === 'active' || scope === 'user-active') {
+    filters.push(sql`b.status = 'active'`);
+    filters.push(sql`NOW() <@ b.time_range`);
+  }
+
+  if (scope === 'completed') {
+    filters.push(sql`b.status = 'completed'`);
+  }
+
+  if (scope === 'user-all' || scope === 'user-active') {
+    filters.push(sql`b.user_id = ${userId}`);
+  }
+
+  if (scope === 'spot') {
+    filters.push(sql`s.id = ${spotId}`);
+  }
+
+  if (scope === 'all' || scope === 'spot' || scope === 'user-all') {
+    filters.push(sql`b.status != 'cancelled'`);
+  }
+
+  const whereSql = filters.length > 0 ? sql`WHERE ${sql.join(filters, sql` AND `)}` : sql``;
+
+  const query = sql`
+    SELECT
+      b.id,
+      ss.code AS sub_spot_code,
+      s.code AS spot_code,
+      LOWER(b.time_range) AS start_time,
+      UPPER(b.time_range) AS end_time,
+      b.vehicle_type,
+      COALESCE(b.comment, '') AS memo,
+      u.email AS user_email,
+      r.code AS region_code,
+      ROW_NUMBER() OVER (PARTITION BY sa.region_id ORDER BY s.code) AS spot_order,
+      ROW_NUMBER() OVER (PARTITION BY ss.spot_id ORDER BY ss.idx, ss.code) AS subspot_order
+    FROM bookings b
+    INNER JOIN sub_spots ss ON ss.id = b.sub_spot_id
+    INNER JOIN spots s ON s.id = ss.spot_id
+    INNER JOIN subareas sa ON sa.id = s.subarea_id
+    INNER JOIN regions r ON r.id = sa.region_id
+    INNER JOIN users u ON u.id = b.user_id
+    ${whereSql}
+    ORDER BY LOWER(b.time_range) DESC NULLS LAST, b.created_at DESC;
+  `;
+
+  const result = await db.execute(query);
+  return (result as any).rows as Array<{
+    id: string;
+    sub_spot_code: string;
+    spot_code: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    vehicle_type: string | null;
+    memo: string | null;
+    user_email: string | null;
+    region_code: string | null;
+    spot_order: number | string | null;
+    subspot_order: number | string | null;
+  }>;
+}
+
+bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) => {
+  const parsed = BookingExportQuery.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const { scope, format, userId, spotId } = parsed.data;
+
+  if ((scope === 'user-all' || scope === 'user-active') && !userId) {
+    return res.status(400).json({ error: '\u30e6\u30fc\u30b6\u30fcID\u304c\u5fc5\u8981\u3067\u3059\u3002' });
+  }
+
+  if (scope === 'spot' && !spotId) {
+    return res.status(400).json({ error: '\u30b9\u30dd\u30c3\u30c8ID\u304c\u5fc5\u8981\u3067\u3059\u3002' });
+  }
+
+  let userLabel: string | null = null;
+  let spotLabel: string | null = null;
+
+  if (userId) {
+    const userRows = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+            const userRecord = userRows[0];
+    if (!userRecord) {
+      return res.status(404).json({ error: '\u6307\u5b9a\u3055\u308c\u305f\u30e6\u30fc\u30b6\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002' });
+    }
+    const userValue = userRecord.email ?? userId ?? null;
+    userLabel = userValue === null || userValue === '' ? null : userValue;
+  }
+
+  if (spotId) {
+    const spotRows = await db
+      .select({ code: schema.spots.code })
+      .from(schema.spots)
+      .where(eq(schema.spots.id, spotId))
+      .limit(1);
+    const spotRecord = spotRows[0];
+    if (!spotRecord) {
+      return res.status(404).json({ error: '\u6307\u5b9a\u3055\u308c\u305f\u30b9\u30dd\u30c3\u30c8\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002' });
+    }
+    const spotValue = spotRecord.code ?? spotId ?? null;
+    spotLabel = spotValue === null || spotValue === '' ? null : spotValue;
+  }
+
+  const bookings = await fetchBookingExportRows(scope, userId, spotId);
+
+  const tableRows = bookings.map((row) => {
+    const spotOrder = typeof row.spot_order === 'number' ? row.spot_order : Number(row.spot_order ?? 0);
+    const subspotOrder = typeof row.subspot_order === 'number' ? row.subspot_order : Number(row.subspot_order ?? 0);
+    const subSpotDisplay = formatSubSpotLabel(row.region_code ?? null, spotOrder, subspotOrder);
+    return [
+      row.id,
+      subSpotDisplay,
+      formatDateTimeISO(row.start_time, ''),
+      formatBookingEnd(row.end_time),
+      japaneseVehicleType(row.vehicle_type),
+      row.memo ?? '',
+    ];
+  });
+
+  let fileBase = BOOKING_FILENAME_BASE[scope];
+  if (typeof userLabel === 'string') {
+    const leadingBase = userLabel.includes('@') ? userLabel.split('@')[0] : userLabel;
+    const leading = leadingBase ?? '';
+    fileBase += `_${sanitizeForFilename(leading)}`;
+  }
+  if (typeof spotLabel === 'string') {
+    const spotSafe = spotLabel ?? '';
+    fileBase += `_${sanitizeForFilename(spotSafe)}`;
+  }
+
+  const timestamp = currentTokyoTimestamp();
+  const extension = format === 'xlsx' ? 'xlsx' : 'csv';
+  const filename = `${fileBase}_${timestamp}.${extension}`;
+
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+  );
+
+  if (format === 'xlsx') {
+    const buffer = await toXlsxBuffer('\u4e88\u7d04\u4e00\u89a7', BOOKING_EXPORT_HEADERS, tableRows);
+    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } else {
+    const buffer = toCsvBuffer(BOOKING_EXPORT_HEADERS, tableRows);
+    res.type('text/csv; charset=utf-8');
+    res.send(buffer);
+  }
+});
+
+
+

@@ -423,6 +423,7 @@ import {
   MapPin,
   RefreshCw,
   MapPinned,
+  Download,
 } from 'lucide-react';
 
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
@@ -616,7 +617,7 @@ export default function Regions() {
               </div>
 
               {/* Sort toggle */}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant={sortBy === 'name' ? 'default' : 'outline'}
                   className="rounded-full"
@@ -641,6 +642,14 @@ export default function Regions() {
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
                   更新
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => navigate('/exports')}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  データ出力
                 </Button>
               </div>
             </div>

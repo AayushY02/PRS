@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from 'express';
+﻿import express, { type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { ENV } from './env.js';
@@ -9,6 +9,7 @@ import regionsRouter from './routes/regions.routes.js';
 import adminRegionsRouter from './routes/regions.admin.routes.js';
 import { authOptional } from './middleware/authOptional';
 import { liveStream } from './live.js';
+import usersRouter from './routes/users.routes.js';
 import statsRouter from './routes/stats.routes.js';
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/regions', regionsRouter);
 app.use('/api/admin/regions', adminRegionsRouter);
 app.use('/api/spots', spotsRouter);
 app.use('/api/bookings', bookingsRouter);
+app.use('/api/users', usersRouter);
 app.get('/api/live', authOptional, liveStream);
 app.use('/api/stats', statsRouter);
 

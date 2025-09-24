@@ -7,6 +7,7 @@ import './index.css';
 import App from './App';
 import Regions from './pages/Regions';
 import Spots from './pages/Spots';
+import Exports from './pages/Exports';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import MyBookings from './pages/MyBookings';
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { path: '/login', element: <Login /> },
       { path: '/signup', element: <Signup /> },
       { path: '/me/bookings', element: <MyBookings /> },
+      { path: '/exports', element: <Exports /> },
     ],
   },
 ]);

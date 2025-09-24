@@ -40,6 +40,8 @@ type SubSpotRow = {
   isMineNow: boolean;
   myStartTime: string | null;
   geometry?: any | null; // Polygon | MultiPolygon | Feature
+  displayLabel?: string;
+  slotOrder?: number;
 };
 
 type ParentSpotRow = {
@@ -47,6 +49,8 @@ type ParentSpotRow = {
   code: string;
   geom?: any | null; // optional parent polygon for future use
   subSpots: SubSpotRow[];
+  displayLabel?: string;
+  order?: number;
 };
 
 export const API_BASE =
@@ -83,6 +87,31 @@ const KASHIWA: [number, number] = [139.9698, 35.8617];
 const SRC_ID = 'subspots-preview-src'; // for feature-state
 
 const COLOR_MINE = '#10b981';
+const CIRCLED_DIGITS = [
+  '\u2460', '\u2461', '\u2462', '\u2463', '\u2464',
+  '\u2465', '\u2466', '\u2467', '\u2468', '\u2469',
+  '\u246A', '\u246B', '\u246C', '\u246D', '\u246E',
+  '\u246F', '\u2470', '\u2471', '\u2472', '\u2473'
+];
+
+const toCircledNumber = (n: number): string => {
+  const value = n >= 1 && n <= CIRCLED_DIGITS.length ? CIRCLED_DIGITS[n - 1] : undefined;
+  return value ?? `(${n})`;
+};
+
+const parseRegionOrdinal = (region: { code?: string | null } | undefined): number => {
+  const code = region?.code ?? '';
+  const matches = code.match(/\d+/g);
+  if (matches && matches.length > 0) {
+    const last = matches[matches.length - 1];
+    const parsed = parseInt(last, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 1;
+};
+
+const formatParentLabel = (circle: string, order: number) => `スポット${circle}-${order}`;
+
 const COLOR_BUSY = '#9ca3af';
 const COLOR_AVAIL = '#38bdf8';
 
@@ -188,7 +217,7 @@ function buildServerFC(subs: SubSpotRow[]): FeatureCollection<Polygon | MultiPol
       geometry: clean,
       properties: {
         type: 'slot',
-        code: s.code,
+        code: s.displayLabel ?? s.code,
         subSpotId: s.id,
         state,
         color,
@@ -302,6 +331,9 @@ export default function Spots() {
   });
   const myUserId: string | null = me?.userId ?? null;
 
+  const regionOrdinal = parseRegionOrdinal(region);
+  const regionCircle = toCircledNumber(regionOrdinal);
+
   const parents: ParentSpotRow[] = (data?.spots ?? []) as any;
   const flatAll = useMemo(() => parents.flatMap(p => p.subSpots), [parents]);
 
@@ -337,11 +369,22 @@ export default function Spots() {
       filter === 'mine' ? s.isMineNow : true;
 
   const filteredParents = useMemo(() => {
-    return parents.map(p => ({
-      ...p,
-      subSpots: p.subSpots.filter(filterFn),
-    })).filter(p => p.subSpots.length > 0 || filter === 'all');
-  }, [parents, filter]);
+    return parents.map((p, parentIdx) => {
+      const parentLabel = formatParentLabel(regionCircle, parentIdx + 1);
+      const mappedSubSpots = p.subSpots.map((s, subIdx) => ({
+        ...s,
+        displayLabel: `${parentLabel}（${subIdx + 1}台目）`,
+        slotOrder: subIdx + 1,
+      }));
+      const visibleSubSpots = mappedSubSpots.filter(filterFn);
+      return {
+        ...p,
+        displayLabel: parentLabel,
+        order: parentIdx + 1,
+        subSpots: visibleSubSpots,
+      };
+    }).filter(p => p.subSpots.length > 0 || filter === 'all');
+  }, [parents, filter, regionCircle]);
 
   const origParentMap = useMemo(() => {
     const m = new Map<string, ParentSpotRow>();
@@ -723,7 +766,7 @@ export default function Spots() {
               <AccordionItem key={p.id} value={p.id} className="border rounded-xl px-2">
                 <AccordionTrigger className="py-2">
                   <div className="w-full flex items-center justify-between pr-2">
-                    <div className="text-base font-semibold">スポット {p.code}</div>
+                    <div className="text-base font-semibold">{p.displayLabel ?? formatParentLabel(regionCircle, (p.order ?? 0) || 1)}</div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="font-mono">{p.subSpots.length}/{totalAll}</Badge>
                       <Badge variant="outline" className="hidden xs:inline-flex">空き {availAll}</Badge>
@@ -755,7 +798,8 @@ export default function Spots() {
                           onBlur={() => setMapHover(null)}
                         >
                           <div className={['rounded-xl p-3 border bg-gradient-to-br', accent].join(' ')}>
-                            <div className="text-sm font-medium truncate">{s.code}</div>
+                            <div className="text-sm font-medium truncate">{s.displayLabel ?? (p.displayLabel ?? s.code)}</div>
+                            <div className="text-[11px] text-muted-foreground">{isBusy ? (isMine ? "路上駐車中（自分） / Street Parking (Mine)" : "路上駐車中 / Street Parking") : "空き / Vacant"}</div>
                             <div className="mt-1 flex items-center gap-2">
                               {isMine ? (
                                 <>
@@ -780,7 +824,7 @@ export default function Spots() {
                               className="rounded-xl w-full mt-2 h-8"
                               variant={isMine ? 'default' : isBusy ? 'outline' : 'default'}
                               onClick={() => openSheet(s)}
-                              aria-label={`${s.code} を${isMine ? '管理' : isBusy ? '詳細' : '予約'}`}
+                              aria-label={`${s.displayLabel ?? s.code} を${isMine ? '管理' : isBusy ? '詳細' : '予約'}`}
                             >
                               {isMine ? '管理' : isBusy ? '詳細' : '予約'}
                             </Button>
@@ -801,7 +845,7 @@ export default function Spots() {
           open={open}
           onOpenChange={(v) => { if (!v) closeSheet(); else setOpen(true); }}
           subSpotId={chosen.id}
-          subSpotCode={chosen.code}
+          subSpotCode={chosen.displayLabel ?? chosen.code}
           myStartTime={chosen.myStartTime ?? undefined}
           onSuccess={async () => {
             const map = mapRef.current;
