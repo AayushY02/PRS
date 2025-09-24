@@ -333,6 +333,17 @@ export default function Spots() {
 
   const regionOrdinal = parseRegionOrdinal(region);
   const regionCircle = toCircledNumber(regionOrdinal);
+  const regionImageMap: Record<number, string> = {
+    1: '/images/region-1.png',
+    2: '/images/region-2.png',
+    3: '/images/region-3.png',
+    4: '/images/region-4.png',
+    6: '/images/region-3.png',
+    7: '/images/region-4.png',
+  };
+  const regionImage = regionImageMap[regionOrdinal] ?? null;
+  const regionImageAlt = region?.name ? `${region.name} レイアウト` : `地域${regionCircle} レイアウト`;
+  const enableMapPreview = !regionImage;
 
   const parents: ParentSpotRow[] = (data?.spots ?? []) as any;
   const flatAll = useMemo(() => parents.flatMap(p => p.subSpots), [parents]);
@@ -458,6 +469,7 @@ export default function Spots() {
   }
 
   useEffect(() => {
+    if (!enableMapPreview) return;
     if (mapRef.current) return;
 
     let cancelled = false;
@@ -527,6 +539,7 @@ export default function Spots() {
   }, []);
 
   useEffect(() => {
+    if (!enableMapPreview) return;
     const map = mapRef.current;
     if (!map || !styleReady) return;
 
@@ -639,7 +652,7 @@ export default function Spots() {
         map.setFeatureState({ source: SRC_ID, id } as any, { state: st });
       }
     });
-  }, [styleReady, previewFC, serverFC]);
+  }, [enableMapPreview, styleReady, previewFC, serverFC]);
 
 
 
@@ -684,20 +697,33 @@ export default function Spots() {
     <>
       <TopTitle title="駐車スペース" subtitle={subtitleText} />
 
-      {/* Map preview */}
-      <div className="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden border mb-3 z-0">
-        <div ref={mapElRef} className="absolute inset-0 z-0 h-64 w-full" />
-        <div className="absolute left-3 bottom-3 flex items-center gap-2 bg-background/80 border rounded-xl px-3 py-2 text-xs">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded bg-emerald-500" /> 自分
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded bg-zinc-400" /> 使用中
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded bg-sky-400" /> 空き
-          </span>
-        </div>
+      {/* Visual preview */}
+      <div className=" w-full  rounded-2xl overflow-hidden border mb-3 z-0">
+        {regionImage ? (
+          <div className="w-full">
+            <img
+              src={regionImage}
+              alt={regionImageAlt}
+              className="w-full"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <>
+            <div ref={mapElRef} className="absolute inset-0 z-0 h-64 w-full" />
+            <div className="absolute left-3 bottom-3 flex items-center gap-2 bg-background/80 border rounded-xl px-3 py-2 text-xs">
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded bg-emerald-500" /> 自分
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded bg-zinc-400" /> 使用中
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded bg-sky-400" /> 空き
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Compact metric chips */}
@@ -824,7 +850,7 @@ export default function Spots() {
                               className="rounded-xl w-full mt-2 h-8"
                               variant={isMine ? 'default' : isBusy ? 'outline' : 'default'}
                               onClick={() => openSheet(s)}
-                              aria-label={`${s.displayLabel ?? s.code} を${isMine ? '管理' : isBusy ? '詳細' : '予約'}`}
+                              aria-label={`${s.displayLabel ?? s.code} を${isMine ? '管理' : isBusy ? '詳細' : '路駐状況記入'}`}
                             >
                               {isMine ? '管理' : isBusy ? '詳細' : '予約'}
                             </Button>
