@@ -195,7 +195,6 @@ import { sql as raw } from 'drizzle-orm';
 import { authRequired } from '../middleware/authRequired'; // keeps req.userId
 import { broadcastBooking } from '../live';
 import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseVehicleType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
-import { authOptional } from '../middleware/authOptional';
 
 export const bookingsRouter = Router();
 
@@ -213,25 +212,6 @@ const CreateBooking = z.object({
 }).refine(v => new Date(v.endTime) > new Date(v.startTime), {
   message: 'End must be after start',
 });
-
-async function getGuestUserId(): Promise<string> {
-  // Try to find existing
-  const existing = await db
-    .select({ id: schema.users.id })
-    .from(schema.users)
-    .where(eq(schema.users.email, 'guest@local'))
-    .limit(1);
-
-  if (existing[0]?.id) return existing[0].id;
-
-  // Create if missing
-  const inserted = await db.insert(schema.users).values({
-    email: 'guest@local',
-    passwordHash: 'guest-disabled',
-  }).returning({ id: schema.users.id });
-
-  return inserted[0]!.id;
-}
 
 bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
@@ -286,8 +266,8 @@ const StartBooking = z.object({
   comment: z.string().max(1000).optional().nullable(),
 });
 
-bookingsRouter.post('/start', authOptional, async (req: Request, res: Response) => {
-  const userId = (req as any).userId ?? await getGuestUserId();
+bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as string;
   const parsed = StartBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
