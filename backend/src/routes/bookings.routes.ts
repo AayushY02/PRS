@@ -195,7 +195,7 @@ import { sql as raw } from 'drizzle-orm';
 import { authRequired } from '../middleware/authRequired'; // keeps req.userId
 import { broadcastBooking } from '../live';
 import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseVehicleType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
-import { authOptional } from '@/middleware/authOptional';
+import { authOptional } from '../middleware/authOptional';
 
 export const bookingsRouter = Router();
 
