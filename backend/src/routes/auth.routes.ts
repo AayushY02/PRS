@@ -17,7 +17,7 @@ const setCookie = (res: any, token: string) => {
   res.cookie(ENV.COOKIE_NAME, token, {
     httpOnly: true,
     secure: true,
-    sameSite: 'none',
+    sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 1000 // << 1 hour in ms
   });
