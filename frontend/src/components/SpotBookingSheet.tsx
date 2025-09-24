@@ -423,7 +423,7 @@ export default function SpotBookingSheet({
           <SheetHeader className="mb-1">
             <SheetTitle className="text-lg flex items-center gap-2">
               <Car className="h-5 w-5" />
-              サブスポット <span className="font-mono">{subSpotCode}</span>
+              <span className="font-mono">{subSpotCode}</span>
               <Badge className="ml-1" variant={isActive ? 'default' : 'secondary'}>
                 {isActive ? '使用中' : '空き'}
               </Badge>
@@ -437,7 +437,7 @@ export default function SpotBookingSheet({
                   </span>
                 </>
               ) : (
-                '新しい予約を開始し、車種を選んでメモを残してください。'
+                '路上駐車の状況を記録してください'
               )}
             </SheetDescription>
           </SheetHeader>
@@ -537,7 +537,7 @@ export default function SpotBookingSheet({
             </div>
             <Textarea
               id="memo"
-              placeholder="例: EV充電中、30分で戻ります"
+              placeholder="例:「集配で駐車」"
               value={comment}
               onChange={(e) => setComment(e.target.value.slice(0, NOTE_LIMIT))}
               className="rounded-xl"
@@ -545,7 +545,7 @@ export default function SpotBookingSheet({
               disabled={isActive}
             />
             <Progress value={charPct} className="h-1.5" />
-            <div className="flex flex-wrap gap-2 pt-1">
+            {/* <div className="flex flex-wrap gap-2 pt-1">
               {QUICK_NOTES.map((q) => (
                 <Button
                   key={q}
@@ -566,7 +566,7 @@ export default function SpotBookingSheet({
                   + {q}
                 </Button>
               ))}
-            </div>
+            </div> */}
           </div>
 
           {/* Actions */}

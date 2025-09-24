@@ -852,7 +852,7 @@ export default function Spots() {
                               onClick={() => openSheet(s)}
                               aria-label={`${s.displayLabel ?? s.code} を${isMine ? '管理' : isBusy ? '詳細' : '路駐状況記入'}`}
                             >
-                              {isMine ? '管理' : isBusy ? '詳細' : '予約'}
+                              {isMine ? '管理' : isBusy ? '詳細' : '路駐状況記入'}
                             </Button>
                           </div>
                         </motion.div>
