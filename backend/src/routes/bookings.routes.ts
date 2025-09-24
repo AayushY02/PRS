@@ -222,7 +222,7 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
 
   try {
     const r = await db.execute(raw`
-      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, direction ,vehicle_type, status)
+      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment ,vehicle_type, direction, status)
       VALUES (
         ${userId}::uuid,
         ${subSpotId}::uuid,
@@ -264,6 +264,8 @@ const StartBooking = z.object({
   subSpotId: z.string().uuid(),
   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
+  direction: z.enum(['north', 'south']),
+
 });
 
 bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) => {
@@ -271,17 +273,18 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
   const parsed = StartBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { subSpotId, comment, vehicleType } = parsed.data;
+  const { subSpotId, comment, vehicleType, direction } = parsed.data;
 
   try {
     const r = await db.execute(raw`
-      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, status)
+      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, direction, status)
       VALUES (
         ${userId}::uuid,
         ${subSpotId}::uuid,
         tstzrange(NOW(), NULL, '[)'),
         ${comment ?? null},
         ${vehicleType ?? 'normal'},
+        ${direction}::direction,
         'active'
       )
       RETURNING id, lower(time_range) AS start_time
@@ -551,7 +554,7 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
     start_time: string | null;
     end_time: string | null;
     vehicle_type: string | null;
-    direction: 'north' | 'south' | null;
+    direction: 'north' | 'south';
     memo: string | null;
     user_email: string | null;
     region_code: string | null;
