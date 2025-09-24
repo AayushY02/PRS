@@ -244,7 +244,7 @@ function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
         spotId: spot.id,
         code: spot.code,
         name: spot.displayLabel ?? spot.code,
-        subareaId: spot.subareaId,
+       // subareaId: spot.subareaId,
         total: subSpots.length,
         busy: busyCount,
         free: freeCount,
