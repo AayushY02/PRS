@@ -9,7 +9,7 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(parseInt(process.env.PORT || '8080', 10)),
   // Accept comma-separated list: "http://localhost:5173,https://my-frontend.onrender.com"
-  CORS_ORIGIN: z.string().default("http://localhost:5173, https://prs-pied.vercel.app/"),
+  CORS_ORIGIN: z.string().default("http://localhost:5173, https://prs-pied.vercel.app"),
 
 }).transform((raw) => ({
   ...raw,
