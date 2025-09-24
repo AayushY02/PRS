@@ -334,12 +334,12 @@ export default function Spots() {
   const regionOrdinal = parseRegionOrdinal(region);
   const regionCircle = toCircledNumber(regionOrdinal);
   const regionImageMap: Record<number, string> = {
-    1: '/images/region-1.png',
-    2: '/images/region-2.png',
-    3: '/images/region-3.png',
-    4: '/images/region-4.png',
-    6: '/images/region-3.png',
-    7: '/images/region-4.png',
+    // 1: '/images/image-1-new.png',
+    // 2: '/images/image-2-new.png',
+    // 3: '/images/region-3.png',
+    // 4: '/images/region-4.png',
+    // 6: '/images/region-3.png',
+    // 7: '/images/region-4.png',
   };
   const regionImage = regionImageMap[regionOrdinal] ?? null;
   const regionImageAlt = region?.name ? `${region.name} レイアウト` : `地域${regionCircle} レイアウト`;
