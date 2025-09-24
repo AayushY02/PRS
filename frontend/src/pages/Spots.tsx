@@ -42,6 +42,7 @@ type SubSpotRow = {
   geometry?: any | null; // Polygon | MultiPolygon | Feature
   displayLabel?: string;
   slotOrder?: number;
+  spotId?: string;
 };
 
 type ParentSpotRow = {
@@ -204,27 +205,60 @@ function sanitizeAnyPoly(geom: any): Polygon | MultiPolygon | null {
   return null; // only polygons supported here
 }
 
-function buildServerFC(subs: SubSpotRow[]): FeatureCollection<Polygon | MultiPolygon> {
+type SpotState = 'mine' | 'busy' | 'available';
+
+function deriveSpotState(subs: SubSpotRow[]): SpotState {
+  if (!Array.isArray(subs) || subs.length === 0) return 'available';
+  if (subs.some(s => s.isMineNow)) return 'mine';
+  if (subs.some(s => s.isBusyNow)) return 'busy';
+  return 'available';
+}
+
+function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
+  fc: FeatureCollection<Polygon | MultiPolygon> | null;
+  stateById: Map<string, SpotState>;
+} {
   const features: Feature<Polygon | MultiPolygon>[] = [];
-  for (const s of subs) {
-    const clean = sanitizeAnyPoly(s?.geometry);
-    if (!clean) continue;
-    const state = s.isMineNow ? 'mine' : s.isBusyNow ? 'busy' : 'available';
-    const color = state === 'mine' ? COLOR_MINE : state === 'busy' ? COLOR_BUSY : COLOR_AVAIL;
+  const stateById = new Map<string, SpotState>();
+
+  for (const spot of parents ?? []) {
+    const geom = sanitizeAnyPoly((spot as any)?.geom);
+    if (!geom) continue;
+
+    const subSpots = Array.isArray(spot.subSpots)
+      ? spot.subSpots
+      : [];
+    const busyCount = subSpots.filter(s => s.isBusyNow).length;
+    const freeCount = Math.max(0, subSpots.length - busyCount);
+    const mineCount = subSpots.filter(s => s.isMineNow).length;
+    const state = deriveSpotState(subSpots);
+    stateById.set(spot.id, state);
+    const fallbackColor = state === 'mine' ? COLOR_MINE : state === 'busy' ? COLOR_BUSY : COLOR_AVAIL;
+
     features.push({
       type: 'Feature',
-      id: s.id,
-      geometry: clean,
+      id: spot.id,
+      geometry: geom,
       properties: {
-        type: 'slot',
-        code: s.displayLabel ?? s.code,
-        subSpotId: s.id,
-        state,
-        color,
+        type: 'spot',
+        spotId: spot.id,
+        code: spot.code,
+        name: spot.displayLabel ?? spot.code,
+        subareaId: spot.subareaId,
+        total: subSpots.length,
+        busy: busyCount,
+        free: freeCount,
+        mine: mineCount,
+        color: fallbackColor,
       },
     });
   }
-  return { type: 'FeatureCollection', features };
+
+  if (features.length === 0) {
+    return { fc: null, stateById };
+  }
+
+  return { fc: { type: 'FeatureCollection', features }, stateById };
 }
 
 /* ==========================================
@@ -287,10 +321,11 @@ function buildPreviewFeatures(
       type: 'slot',
       code: s.code,
       subSpotId: s.id,
+      spotId: s.spotId ?? s.id,
       state,
       color: fill,
     }) as Feature<Polygon>;
-    poly.id = s.id;
+    poly.id = s.spotId ?? s.id;
     slots.push(poly);
   }
 
@@ -300,7 +335,7 @@ function buildPreviewFeatures(
 export default function Spots() {
   const { regionId } = useParams<{ regionId: string }>();
   const qc = useQueryClient();
-  const liveStatesRef = useRef(new Map<string, 'mine' | 'busy' | 'available'>());
+  const liveStatesRef = useRef(new Map<string, SpotState>());
 
   // store map event handlers so we can .off() them correctly
   const clickHandlerRef = useRef<((e: MapLayerMouseEvent) => void) | null>(null);
@@ -346,13 +381,12 @@ export default function Spots() {
   const enableMapPreview = !regionImage;
 
   const parents: ParentSpotRow[] = (data?.spots ?? []) as any;
-  const flatAll = useMemo(() => parents.flatMap(p => p.subSpots), [parents]);
-
-  // Build sanitized FeatureCollection from server polygons
-  const serverFC = useMemo<FeatureCollection<Polygon | MultiPolygon>>(
-    () => buildServerFC(flatAll),
-    [flatAll]
+  const flatAll = useMemo(() =>
+    parents.flatMap(p => p.subSpots.map((s) => ({ ...s, spotId: p.id }))),
+    [parents]
   );
+
+  const { fc: spotFC, stateById: spotStateById } = useMemo(() => buildSpotFeatureCollection(parents), [parents]);
 
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<SubSpotRow | null>(null);
@@ -363,6 +397,9 @@ export default function Spots() {
     flatAll.forEach(s => m.set(s.id, s));
     return m;
   }, [flatAll]);
+
+  const subSpotToSpotRef = useRef(subSpotById);
+  useEffect(() => { subSpotToSpotRef.current = subSpotById; }, [subSpotById]);
 
   const counts = useMemo(() => ({
     total: flatAll.length,
@@ -384,7 +421,8 @@ export default function Spots() {
       const parentLabel = formatParentLabel(regionCircle, parentIdx + 1);
       const mappedSubSpots = p.subSpots.map((s, subIdx) => ({
         ...s,
-        displayLabel: `${parentLabel}（${subIdx + 1}台目）`,
+        spotId: p.id,
+        displayLabel: `${parentLabel}・${subIdx + 1}台目`,
         slotOrder: subIdx + 1,
       }));
       const visibleSubSpots = mappedSubSpots.filter(filterFn);
@@ -550,15 +588,11 @@ export default function Spots() {
       const SLOTS_LABEL = 'subspots-slots-label';
 
       // Prefer server rectangles if any exist, otherwise fallback to fake preview road+slots
-      const fcHasServer = (serverFC?.features?.length ?? 0) > 0;
-      // const useFC = fcHasServer
-      //   ? (serverFC as unknown as GeoJSON.FeatureCollection)
-      //   : (previewFC as unknown as GeoJSON.FeatureCollection);
-
-      const useFC = serverFC as any;
+      const fcHasServer = (spotFC?.features?.length ?? 0) > 0;
+      const useFC = (fcHasServer ? spotFC : previewFC) as any;
 
       if (!fcHasServer) {
-        console.warn('[Spots] No valid sub-spot polygons from server; showing preview rectangles.');
+        console.warn('[Spots] No valid spot polygons from server; showing preview rectangles.');
       }
 
       if (map.getSource(SRC_ID)) {
@@ -568,15 +602,8 @@ export default function Spots() {
           type: 'geojson',
           data: useFC,
           // ✅ ensures feature-state ids are stable across reloads
-          promoteId: 'subSpotId',
+          promoteId: 'spotId',
         } as any);
-      }
-
-      // (Re)set the source
-      if (map.getSource(SRC_ID)) {
-        (map.getSource(SRC_ID) as maplibregl.GeoJSONSource).setData(useFC);
-      } else {
-        map.addSource(SRC_ID, { type: 'geojson', data: useFC } as any);
       }
 
       const ensure = (id: string, layer: any) => {
@@ -610,6 +637,7 @@ export default function Spots() {
         type: 'fill',
         source: SRC_ID,
         filter: ['any',
+          ['==', ['get', 'type'], 'spot'],
           ['==', ['get', 'type'], 'slot'],               // preview slots
           ['==', ['geometry-type'], 'Polygon'],
           ['==', ['geometry-type'], 'MultiPolygon'],
@@ -622,6 +650,7 @@ export default function Spots() {
         type: 'line',
         source: SRC_ID,
         filter: ['any',
+          ['==', ['get', 'type'], 'spot'],
           ['==', ['get', 'type'], 'slot'],
           ['==', ['geometry-type'], 'Polygon'],
           ['==', ['geometry-type'], 'MultiPolygon'],
@@ -634,6 +663,7 @@ export default function Spots() {
         type: 'symbol',
         source: SRC_ID,
         filter: ['any',
+          ['==', ['get', 'type'], 'spot'],
           ['==', ['get', 'type'], 'slot'],
           ['==', ['geometry-type'], 'Polygon'],
           ['==', ['geometry-type'], 'MultiPolygon'],
@@ -648,11 +678,16 @@ export default function Spots() {
       // Clear any stale feature-state after we replaced data
       // map.removeFeatureState?.({ source: SRC_ID } as any);
       map.removeFeatureState?.({ source: SRC_ID } as any);
-      for (const [id, st] of liveStatesRef.current) {
-        map.setFeatureState({ source: SRC_ID, id } as any, { state: st });
+      if (fcHasServer) {
+        liveStatesRef.current = new Map(spotStateById);
+        for (const [id, st] of spotStateById) {
+          map.setFeatureState({ source: SRC_ID, id } as any, { state: st });
+        }
+      } else {
+        liveStatesRef.current.clear();
       }
     });
-  }, [enableMapPreview, styleReady, previewFC, serverFC]);
+  }, [enableMapPreview, styleReady, previewFC, spotFC, spotStateById]);
 
 
 
@@ -664,18 +699,22 @@ export default function Spots() {
     const onBooking = (ev: MessageEvent) => {
       try {
         const msg = JSON.parse(ev.data) as { event: 'start' | 'end'; subSpotId: string; userId: string };
+        const spot = subSpotToSpotRef.current.get(msg.subSpotId);
+        const spotId = spot?.spotId;
+        if (!spotId) return;
+
         const map = mapRef.current;
-        const state =
+        const state: SpotState =
           msg.event === 'start'
             ? (myUserId && msg.userId === myUserId ? 'mine' : 'busy')
             : 'available';
 
         // ✅ cache the live state
-        liveStatesRef.current.set(msg.subSpotId, state);
+        liveStatesRef.current.set(spotId, state);
 
         // ✅ apply immediately if source is ready
         if (map && isStyleLoadedSafe(map) && map.getSource(SRC_ID)) {
-          map.setFeatureState({ source: SRC_ID, id: msg.subSpotId } as any, { state });
+          map.setFeatureState({ source: SRC_ID, id: spotId } as any, { state });
         }
 
         // refresh list/counters in background
@@ -711,7 +750,7 @@ export default function Spots() {
         ) : (
           <>
             <div ref={mapElRef} className="absolute inset-0 z-0 h-64 w-full" />
-            <div className="absolute left-3 bottom-3 flex items-center gap-2 bg-background/80 border rounded-xl px-3 py-2 text-xs">
+            {/* <div className="absolute left-3 bottom-3 flex items-center gap-2 bg-background/80 border rounded-xl px-3 py-2 text-xs">
               <span className="inline-flex items-center gap-1">
                 <span className="inline-block h-2 w-2 rounded bg-emerald-500" /> 自分
               </span>
@@ -721,7 +760,7 @@ export default function Spots() {
               <span className="inline-flex items-center gap-1">
                 <span className="inline-block h-2 w-2 rounded bg-sky-400" /> 空き
               </span>
-            </div>
+            </div> */}
           </>
         )}
       </div>
@@ -818,9 +857,9 @@ export default function Spots() {
                           initial={{ opacity: 0, y: 8, scale: 0.98 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           transition={{ duration: 0.2, delay: Math.min(idx, 10) * 0.015 }}
-                          onMouseEnter={() => setMapHover(s.id)}
+                          onMouseEnter={() => setMapHover(s.spotId ?? s.id)}
                           onMouseLeave={() => setMapHover(null)}
-                          onFocus={() => setMapHover(s.id)}
+                          onFocus={() => setMapHover(s.spotId ?? s.id)}
                           onBlur={() => setMapHover(null)}
                         >
                           <div className={['rounded-xl p-3 border bg-gradient-to-br', accent].join(' ')}>
@@ -875,9 +914,11 @@ export default function Spots() {
           myStartTime={chosen.myStartTime ?? undefined}
           onSuccess={async () => {
             const map = mapRef.current;
-            if (map && chosen) {
+            const spotId = chosen.spotId;
+            if (map && spotId) {
               const nextState = chosen.isMineNow ? 'available' : 'mine';
-              map.setFeatureState?.({ source: SRC_ID, id: chosen.id } as any, { state: nextState });
+              map.setFeatureState?.({ source: SRC_ID, id: spotId } as any, { state: nextState });
+              liveStatesRef.current.set(spotId, nextState);
             }
 
             setChosen(null);
