@@ -424,9 +424,11 @@ function buildDirectionFeaturesFromFC(fc: FeatureCollection<any>): DirFeatures |
   const latKm = (bb[3] - bb[1]) * 111.32;
   const lengthKm = Math.max(0.15, Math.max(lonKm, latKm) * 1.15);
   const minDimKm = Math.max(0.03, Math.min(lonKm, latKm));
-  const offsetKm = Math.min(0.08, Math.max(0.02, minDimKm * 0.35));
-  const headLenKm = Math.min(0.06, Math.max(0.025, lengthKm * 0.18));
-  const headWidthKm = Math.max(0.018, headLenKm * 0.5);
+  // increase spacing from polygons
+  const offsetKm = Math.min(0.12, Math.max(0.04, minDimKm * 0.6));
+  // make triangle head smaller
+  const headLenKm = Math.min(0.04, Math.max(0.015, lengthKm * 0.12));
+  const headWidthKm = Math.max(0.012, headLenKm * 0.35);
 
   const buildLine = (side: 'north' | 'south') => {
     const baseBearing = side === 'north' ? bearing : (bearing + 180) % 360;
@@ -458,12 +460,12 @@ function buildDirectionFeaturesFromFC(fc: FeatureCollection<any>): DirFeatures |
   const northHead = buildHead(north.tip, north.baseBearing, 'north');
   const southHead = buildHead(south.tip, south.baseBearing, 'south');
 
-  const labelPoint = (side: 'north' | 'south') => {
+  const labelPoint = (side: 'north' | 'south'): Feature<Point> => {
     const baseBearing = side === 'north' ? bearing : (bearing + 180) % 360;
     const offBearing = side === 'north' ? bearing - 90 : bearing + 90;
     const cOff = destination(point(center), offsetKm, offBearing, { units: 'kilometers' });
     const pt = point(cOff.geometry.coordinates as Position, { role: 'label', side, label: side === 'north' ? '北側' : '南側', bearing: baseBearing });
-    return pt as TurfFeature<TurfPoint>;
+    return pt as unknown as Feature<Point>;
   };
 
   const features: Feature<Geometry>[] = [
@@ -845,14 +847,16 @@ export default function Spots() {
           type: 'line',
           source: DIR_SRC_ID,
           filter: ['all', ['==', ['get', 'role'], 'arrow-line'], ['==', ['get', 'side'], 'north']],
-          paint: { 'line-color': COLOR_DIR, 'line-width': 4, 'line-opacity': 0.85 },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': COLOR_DIR, 'line-width': 5, 'line-opacity': 0.9 },
         });
         ensure(DIR_SOUTH_LINE, {
           id: DIR_SOUTH_LINE,
           type: 'line',
           source: DIR_SRC_ID,
           filter: ['all', ['==', ['get', 'role'], 'arrow-line'], ['==', ['get', 'side'], 'south']],
-          paint: { 'line-color': COLOR_DIR, 'line-width': 4, 'line-opacity': 0.85 },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': COLOR_DIR, 'line-width': 5, 'line-opacity': 0.9 },
         });
         ensure(DIR_HEAD, {
           id: DIR_HEAD,
@@ -872,7 +876,7 @@ export default function Spots() {
             'text-allow-overlap': true,
             'text-rotation-alignment': 'map',
             'text-rotate': ['get', 'bearing'],
-            'text-offset': [0, 0.8],
+            'text-offset': [0, 1.0],
           },
           paint: { 'text-color': COLOR_DIR, 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
         });
