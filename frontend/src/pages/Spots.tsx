@@ -56,9 +56,9 @@ type ParentSpotRow = {
   order?: number;
 };
 
-export const API_BASE =
-  (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ||
-  'http://localhost:8080/api'; // dev fallback
+const ENV_API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '');
+const IS_LOCALHOST = typeof window !== 'undefined' && /^localhost(?::\d+)?$/.test(window.location.hostname);
+export const API_BASE = ENV_API_BASE || (IS_LOCALHOST ? 'http://localhost:8080' : '');
 
 // ===== Small bits =====
 function SubSpotSkeleton() {
