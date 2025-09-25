@@ -45,6 +45,11 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type Vehicle = 'normal' | 'large' | 'other';
+type ActiveBooking = {
+  vehicleType: Vehicle;
+  comment: string | null;
+  direction: 'north' | 'south';
+};
 
 type Props = {
   open: boolean;
@@ -106,7 +111,7 @@ export default function SpotBookingSheet({
 
   const [comment, setComment] = useState('');
   const [vehicle, setVehicle] = useState<Vehicle>('normal');
-  const [submitting, setSubmitting] = useState<null | 'start' | 'end'>(null);
+  const [submitting, setSubmitting] = useState<null | 'start' | 'end' | 'update'>(null);
   const [copied, setCopied] = useState(false);
 
   const { elapsed: elapsedDuration, current: currentMoment } = useActiveTimer(myStartTime ?? null);
@@ -117,10 +122,38 @@ export default function SpotBookingSheet({
   const endTimeDisplay = formatClockTime(currentMoment ?? null);
   const elapsedDisplay = elapsedDuration ?? '00:00:00';
   const [direction, setDirection] = useState<'north' | 'south'>('north');
+  const [initial, setInitial] = useState<ActiveBooking | null>(null); // for dirty check
+
+
 
   useEffect(() => {
-    if (!open) {
-      // Reset local state when the sheet closes
+    let abort = false;
+    async function loadActive() {
+      if (!open) return;
+      if (!isActive) { setInitial(null); return; }
+      try {
+        const r = await api.get('/api/bookings/active', { params: { subSpotId } });
+        if (abort) return;
+        const b = r.data as ActiveBooking;
+        setDirection(b.direction ?? 'north');
+        setVehicle((b.vehicleType ?? 'normal') as Vehicle);
+        setComment(b.comment ?? '');
+        setInitial({
+          direction: b.direction ?? 'north',
+          vehicleType: (b.vehicleType ?? 'normal') as Vehicle,
+          comment: b.comment ?? '',
+        });
+      } catch {
+        // if fetch fails, keep whatever we had
+      }
+    }
+    loadActive();
+    return () => { abort = true; };
+  }, [open, isActive, subSpotId]);
+
+  // Only clear fields on close if there is no active booking
+  useEffect(() => {
+    if (!open && !isActive) {
       setComment('');
       setVehicle('normal');
       setSubmitting(null);
@@ -128,8 +161,15 @@ export default function SpotBookingSheet({
       setError(null);
       setEndDialogOpen(false);
       setDirection('north');
+      setInitial(null);
     }
-  }, [open]);
+  }, [open, isActive]);
+
+  const dirty =
+    initial !== null &&
+    (initial.direction !== direction ||
+      initial.vehicleType !== vehicle ||
+      (initial.comment ?? '') !== comment);
 
   async function startBooking() {
     setSubmitting('start');
@@ -146,6 +186,27 @@ export default function SpotBookingSheet({
     } catch (e: any) {
       // Show error via Alert instead of native alert
       setError(e?.response?.data?.error ?? 'Failed to start booking');
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function updateBooking() {
+    setSubmitting('update');  // reuse spinner slot; or add 'update'
+    setError(null);
+    try {
+      await api.post('/api/bookings/update', {
+        subSpotId,
+        vehicleType: vehicle,
+        comment: comment.trim() || null,
+        direction,
+      });
+      // refresh counters/map
+      onSuccess();
+      // refresh "initial" to current so dirty becomes false
+      setInitial({ vehicleType: vehicle, comment, direction });
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Failed to update booking');
     } finally {
       setSubmitting(null);
     }
@@ -290,7 +351,6 @@ export default function SpotBookingSheet({
             <Select
               value={vehicle}
               onValueChange={(v) => setVehicle(v as Vehicle)}
-              disabled={isActive}
             >
               <SelectTrigger id="vehicle" className="w-full rounded-xl h-10">
                 <SelectValue placeholder="車種を選んでください…" />
@@ -326,7 +386,6 @@ export default function SpotBookingSheet({
               onChange={(e) => setComment(e.target.value.slice(0, NOTE_LIMIT))}
               className="rounded-xl"
               rows={3}
-              disabled={isActive}
             />
             <Progress value={charPct} className="h-1.5" />
 
@@ -338,7 +397,6 @@ export default function SpotBookingSheet({
                   variant={direction === 'north' ? 'default' : 'outline'}
                   className="rounded-full"
                   onClick={() => setDirection('north')}
-                  disabled={isActive}
                 >
                   北側方向
                 </Button>
@@ -347,7 +405,6 @@ export default function SpotBookingSheet({
                   variant={direction === 'south' ? 'default' : 'outline'}
                   className="rounded-full"
                   onClick={() => setDirection('south')}
-                  disabled={isActive}
                 >
                   南側方向
                 </Button>
@@ -381,7 +438,7 @@ export default function SpotBookingSheet({
           </div>
 
           {/* Actions */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className={`grid ${isActive ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1`}>
             <Button
               variant={isActive ? 'secondary' : 'default'}
               onClick={startBooking}
@@ -444,6 +501,23 @@ export default function SpotBookingSheet({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            {isActive && (
+              <Button
+                variant="default"
+                onClick={updateBooking}
+                disabled={!dirty || submitting !== null}
+                className="rounded-xl h-11"
+                title={dirty ? '変更を保存' : '変更はありません'}
+              >
+                {submitting === 'update' ? (  // <-- tighten condition
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    更新中…
+                  </span>
+                ) : '更新'}
+              </Button>
+            )}
           </div>
 
           {/* Footer actions */}

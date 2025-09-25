@@ -1,191 +1,4 @@
 ﻿
-
-
-
-// import { Router, type Request, type Response } from 'express';
-// import { z } from 'zod';
-// import { db, schema } from '../db';
-// import { and, eq } from 'drizzle-orm';
-// import { sql as raw } from 'drizzle-orm';
-// import { authRequired } from '../middleware/authRequired'; // keeps req.userId
-// import { broadcastBooking } from '@/live';
-
-// export const bookingsRouter = Router();
-
-// /**
-//  * Create a fixed booking (start/end). Kept for 窶徇anual窶・reservations if you still need it.
-//  * Uses sub-spot and (optionally) vehicleType.
-//  */
-// const CreateBooking = z.object({
-//   subSpotId: z.string().uuid(),
-//   startTime: z.string().datetime(),
-//   endTime: z.string().datetime(),
-//   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
-//   comment: z.string().max(1000).optional().nullable(),
-// }).refine(v => new Date(v.endTime) > new Date(v.startTime), {
-//   message: 'End must be after start',
-// });
-
-// bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
-//   const userId = (req as any).userId as string;
-//   const parsed = CreateBooking.safeParse(req.body);
-//   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-//   const { subSpotId, startTime, endTime, comment, vehicleType } = parsed.data;
-
-//   try {
-//     await db.execute(raw`
-//       INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, status)
-//       VALUES (
-//         ${userId}::uuid,
-//         ${subSpotId}::uuid,
-//         tstzrange(${startTime}::timestamptz, ${endTime}::timestamptz, '[)'),
-//         ${comment ?? null},
-//         ${vehicleType ?? 'normal'},
-//         'active'
-//       )
-//     `);
-//     res.json({ ok: true });
-//   } catch (e: any) {
-//     // 23P01 = EXCLUDE constraint violation (overlap)
-//     if (String(e?.code) === '23P01') return res.status(409).json({ error: 'Sub-spot already booked in this interval' });
-//     console.error(e);
-//     res.status(500).json({ error: 'Failed to create booking' });
-//   }
-// });
-
-// /**
-//  * START an open-ended booking now (meter starts running).
-//  * Accepts vehicleType (譎ｮ騾・螟ｧ蝙・縺昴・莉・.
-//  */
-// const StartBooking = z.object({
-//   subSpotId: z.string().uuid(),
-//   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
-//   comment: z.string().max(1000).optional().nullable(),
-// });
-
-// bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) => {
-//   const userId = (req as any).userId as string;
-//   const parsed = StartBooking.safeParse(req.body);
-//   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-//   const { subSpotId, comment, vehicleType } = parsed.data;
-
-//   try {
-//     const r = await db.execute(raw`
-//       INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, status)
-//       VALUES (
-//         ${userId}::uuid,
-//         ${subSpotId}::uuid,
-//         tstzrange(NOW(), NULL, '[)'),
-//         ${comment ?? null},
-//         ${vehicleType ?? 'normal'},
-//         'active'
-//       )
-//       RETURNING id
-//     `);
-//     const bookingId = (r as any)?.rows?.[0]?.id ?? null;
-//     res.json({ ok: true, bookingId });
-
-//     broadcastBooking('start', { subSpotId, userId, startTime: new Date().toISOString() });
-//     res.json({ ok: true, bookingId });
-
-//   } catch (e: any) {
-//     if (String(e?.code) === '23P01') return res.status(409).json({ error: 'This sub-spot is already booked' });
-//     console.error(e);
-//     res.status(500).json({ error: 'Failed to start booking' });
-//   }
-// });
-
-// /**
-//  * END the current user窶冱 active booking for a sub-spot (upper-bound the range to now).
-//  */
-// const EndBooking = z.object({
-//   subSpotId: z.string().uuid(),
-// });
-
-// bookingsRouter.post('/end', authRequired, async (req: Request, res: Response) => {
-//   const userId = (req as any).userId as string;
-//   const parsed = EndBooking.safeParse(req.body);
-//   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-//   const { subSpotId } = parsed.data;
-
-//   const r = await db.execute(raw`
-//     UPDATE bookings
-//     SET time_range = tstzrange(lower(time_range), NOW(), '[)'),
-//         status = 'completed'
-//     WHERE user_id = ${userId}::uuid
-//       AND sub_spot_id = ${subSpotId}::uuid
-//       AND status = 'active'
-//       AND NOW() <@ time_range
-//     RETURNING id
-//   `);
-
-//   if ((r as any).rows?.length === 0) {
-//     return res.status(404).json({ error: 'No active booking to end' });
-//   }
-
-//   broadcastBooking('end', { subSpotId, userId });
-//   res.json({ ok: true });
-// });
-
-// /**
-//  * List your bookings (active + past).
-//  * Joins sub_spots to return sub_spot_code; frontend parses time_range.
-//  */
-// bookingsRouter.get('/mine', authRequired, async (req: Request, res: Response) => {
-//   const userId = (req as any).userId as string;
-
-//   const r = await db.execute(raw`
-//     SELECT
-//       b.id,
-//       b.sub_spot_id,
-//       ss.code AS sub_spot_code,
-//       b.time_range,
-//       b.comment,
-//       b.vehicle_type,
-//       b.status,
-//       b.created_at
-//     FROM bookings b
-//     JOIN sub_spots ss ON ss.id = b.sub_spot_id
-//     WHERE b.user_id = ${userId}::uuid
-//     ORDER BY lower(b.time_range) DESC, b.created_at DESC
-//   `);
-
-//   res.json({ bookings: (r as any).rows ?? [] });
-// });
-
-// /**
-//  * Soft-cancel an active booking (optional, keeps history).
-//  */
-// bookingsRouter.delete('/:id', authRequired, async (req, res) => {
-//   const userId = (req as any).userId as string | undefined;
-//   const idParam = req.params?.id;
-
-//   if (!userId || !idParam) {
-//     return res.status(400).json({ error: 'Missing user or booking id' });
-//   }
-
-//   const r = await db
-//     .update(schema.bookings)
-//     .set({ status: 'cancelled' as const })
-//     .where(
-//       and(
-//         eq(schema.bookings.id, idParam),
-//         eq(schema.bookings.userId, userId),
-//         eq(schema.bookings.status, 'active' as const)
-//       )
-//     )
-//     .returning({ id: schema.bookings.id });
-
-//   if (!r[0]) {
-//     return res.status(404).json({ error: 'Booking not found or already cancelled' });
-//   }
-//   res.json({ ok: true });
-// });
-
-
 // backend/src/routes/bookings.ts
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
@@ -211,6 +24,18 @@ const CreateBooking = z.object({
   direction: z.enum(['north', 'south']),
 }).refine(v => new Date(v.endTime) > new Date(v.startTime), {
   message: 'End must be after start',
+});
+
+const ActiveBookingQuery = z.object({
+  subSpotId: z.string().uuid(),
+});
+
+// Update the caller's active booking (body)
+const UpdateBookingBody = z.object({
+  subSpotId: z.string().uuid(),
+  vehicleType: z.enum(['normal', 'large', 'other']).optional(),
+  comment: z.string().max(1000).optional().nullable(),
+  direction: z.enum(['north', 'south']).optional(),
 });
 
 bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
@@ -266,6 +91,95 @@ const StartBooking = z.object({
   comment: z.string().max(1000).optional().nullable(),
   direction: z.enum(['north', 'south']),
 
+});
+
+bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as string;
+  const parsed = ActiveBookingQuery.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { subSpotId } = parsed.data;
+
+  try {
+    const r = await db.execute(raw`
+      SELECT
+        id,
+        sub_spot_id,
+        comment,
+        vehicle_type,
+        direction,
+        lower(time_range) AS start_time
+      FROM bookings
+      WHERE user_id = ${userId}::uuid
+        AND sub_spot_id = ${subSpotId}::uuid
+        AND status = 'active'
+        AND NOW() <@ time_range
+      ORDER BY lower(time_range) DESC
+      LIMIT 1
+    `);
+
+    const row = (r as any)?.rows?.[0];
+    if (!row) return res.status(404).json({ error: 'No active booking' });
+
+    // minimal shape the sheet needs
+    res.json({
+      id: row.id,
+      subSpotId: row.sub_spot_id,
+      vehicleType: row.vehicle_type,
+      comment: row.comment,
+      direction: row.direction,
+      startTime: row.start_time,
+    });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load active booking' });
+  }
+});
+
+
+bookingsRouter.post('/update', authRequired, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as string;
+  const parsed = UpdateBookingBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { subSpotId, vehicleType, comment, direction } = parsed.data;
+
+  if (vehicleType === undefined && comment === undefined && direction === undefined) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  try {
+    const sets: any[] = [];
+    if (vehicleType !== undefined) sets.push(sql`vehicle_type = ${vehicleType}`);
+    if (comment !== undefined) sets.push(sql`comment = ${comment ?? null}`);
+    if (direction !== undefined) sets.push(sql`direction = ${direction}::direction`);
+    sets.push(sql`updated_at = NOW()`);
+
+    const r = await db.execute(sql`
+      UPDATE bookings
+      SET ${sql.join(sets, sql`, `)}
+      WHERE user_id = ${userId}::uuid
+        AND sub_spot_id = ${subSpotId}::uuid
+        AND status = 'active'
+        AND NOW() <@ time_range
+      RETURNING id, sub_spot_id, vehicle_type, comment, direction
+    `);
+
+    const row = (r as any)?.rows?.[0];
+    if (!row) return res.status(404).json({ error: 'No active booking to update' });
+
+    res.json({
+      ok: true,
+      id: row.id,
+      subSpotId: row.sub_spot_id,
+      vehicleType: row.vehicle_type,
+      comment: row.comment,
+      direction: row.direction,
+    });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update booking' });
+  }
 });
 
 bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) => {
@@ -562,6 +476,8 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
     subspot_order: number | string | null;
   }>;
 }
+
+
 
 bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) => {
   const parsed = BookingExportQuery.safeParse(req.query);

@@ -87,7 +87,7 @@ export const bookings = pgTable('bookings', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   // CHANGED: link to sub-spot instead of “spot”
   subSpotId: uuid('sub_spot_id').notNull().references(() => subSpots.id, { onDelete: 'cascade' }),
-  direction: directionEnum('direction'), 
+  direction: directionEnum('direction'),
   // time range: [start, end) — end open while active; you already use tstzrange in UI
   // timeRange: ("time_range").notNull(),
   timeRange: tstzrange('time_range').notNull(),
@@ -98,6 +98,7 @@ export const bookings = pgTable('bookings', {
   vehicleType: vehicleTypeEnum('vehicle_type').notNull().default('normal'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 
