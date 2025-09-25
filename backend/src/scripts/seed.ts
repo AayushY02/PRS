@@ -9,8 +9,8 @@ type RegionBlueprint = {
 };
 
 const regionBlueprints: RegionBlueprint[] = [
-  { code: 'kukan-01', name: 'Kukan 01', spotCount: 6 },
-  { code: 'kukan-02', name: 'Kukan 02', spotCount: 6 },
+  { code: 'kukan-01', name: 'Kukan 01', spotCount: 5 },
+  { code: 'kukan-02', name: 'Kukan 02', spotCount: 7 },
   { code: 'kukan-06', name: 'Kukan 06', spotCount: 3 },
   { code: 'kukan-07', name: 'Kukan 07', spotCount: 5 },
 ];

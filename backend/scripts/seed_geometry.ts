@@ -25,8 +25,8 @@ const REGION_CODES = ['kukan-01', 'kukan-02', 'kukan-06', 'kukan-07'] as const;
 type RegionCode = (typeof REGION_CODES)[number];
 
 const REGION_SPOT_COUNTS: Record<RegionCode, number> = {
-  'kukan-01': 6,
-  'kukan-02': 6,
+  'kukan-01': 5,
+  'kukan-02': 7,
   'kukan-06': 3,
   'kukan-07': 5,
 };

@@ -8,6 +8,7 @@
         "start": "node dist/server.js",
         "db:migrate": "tsx src/scripts/migrate.ts",
         "db:seed": "tsx src/scripts/seed.ts",
+        "db:seed:geometry": "tsx scripts/seed_geometry.ts",
         "drizzle:generate": "drizzle-kit generate:pg",
         "drizzle:push": "drizzle-kit push:pg"
     },

@@ -6,8 +6,8 @@ WITH deleted AS (
 ),
 region_blueprints AS (
   SELECT * FROM (VALUES
-    ('kukan-01', 'Kukan 01', 6),
-    ('kukan-02', 'Kukan 02', 6),
+    ('kukan-01', 'Kukan 01', 5),
+    ('kukan-02', 'Kukan 02', 7),
     ('kukan-06', 'Kukan 06', 3),
     ('kukan-07', 'Kukan 07', 5)
   ) AS rb(code, name, spot_count)
