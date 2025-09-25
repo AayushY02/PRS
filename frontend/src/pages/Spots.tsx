@@ -460,11 +460,21 @@ function buildDirectionFeaturesFromFC(fc: FeatureCollection<any>): DirFeatures |
   const northHead = buildHead(north.tip, north.baseBearing, 'north');
   const southHead = buildHead(south.tip, south.baseBearing, 'south');
 
+  // Keep label always upright: normalize bearing into [-90, 90]
+  const normalizeLabelBearing = (deg: number) => {
+    let d = ((deg % 360) + 360) % 360; // 0..360
+    if (d > 180) d -= 360;            // -180..180
+    if (d > 90) d -= 180;             // keep within [-90,90]
+    if (d < -90) d += 180;
+    return d;
+  };
+
   const labelPoint = (side: 'north' | 'south'): Feature<Point> => {
     const baseBearing = side === 'north' ? bearing : (bearing + 180) % 360;
     const offBearing = side === 'north' ? bearing - 90 : bearing + 90;
     const cOff = destination(point(center), offsetKm, offBearing, { units: 'kilometers' });
-    const pt = point(cOff.geometry.coordinates as Position, { role: 'label', side, label: side === 'north' ? '北側' : '南側', bearing: baseBearing });
+    const labelBearing = normalizeLabelBearing(baseBearing);
+    const pt = point(cOff.geometry.coordinates as Position, { role: 'label', side, label: side === 'north' ? '北側' : '南側', bearing: baseBearing, labelBearing });
     return pt as unknown as Feature<Point>;
   };
 
@@ -875,7 +885,7 @@ export default function Spots() {
             'text-size': 12,
             'text-allow-overlap': true,
             'text-rotation-alignment': 'map',
-            'text-rotate': ['get', 'bearing'],
+            'text-rotate': ['get', 'labelBearing'],
             'text-offset': [0, 1.0],
           },
           paint: { 'text-color': COLOR_DIR, 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
