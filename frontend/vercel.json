@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://prs-backend-2-fd4uw.ondigitalocean.app/" },
+    { "source": "/api/(.*)", "destination": "https://prs-backend-2-fd4uw.ondigitalocean.app/api/$1" },
     { "source": "/(.*)\\.(js|css|png|jpg|jpeg|webp|svg|ico|txt|json|map)", "destination": "/$1.$2" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
