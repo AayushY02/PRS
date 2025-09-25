@@ -1,4 +1,4 @@
-
+﻿
 
 // src/pages/Spots.tsx
 import { useParams } from 'react-router-dom';
@@ -28,6 +28,7 @@ import type {
   LineString,
   MultiPolygon,
   Polygon,
+  Point,
   Position,
 } from 'geojson';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -87,6 +88,7 @@ const MAP_STYLE = ENV_STYLE && ENV_STYLE.trim() ? ENV_STYLE : DEMO_STYLE;
 const KASHIWA: [number, number] = [139.9698, 35.8617];
 
 const SRC_ID = 'subspots-preview-src'; // for feature-state
+const DIR_SRC_ID = 'parking-direction-src';
 
 const COLOR_MINE = '#10b981';
 const CIRCLED_DIGITS = [
@@ -116,6 +118,7 @@ const formatParentLabel = (circle: string, order: number) => `スポット${circ
 
 const COLOR_BUSY = '#9ca3af';
 const COLOR_AVAIL = '#38bdf8';
+const COLOR_DIR = '#f97316'; // orange direction arrows
 
 const isStyleLoadedSafe = (m?: MLMap | null): boolean =>
   !!(m && typeof m.isStyleLoaded === 'function' && m.isStyleLoaded());
@@ -335,6 +338,144 @@ function buildPreviewFeatures(
   }
 
   return featureCollection<LineString | Polygon>([road, ...slots]) as FeatureCollection<LineString | Polygon>;
+}
+
+// ================================
+// Parking direction arrow builder
+// ================================
+type DirFeatures = FeatureCollection<Geometry>;
+
+function kmPerDegreeLon(latDeg: number) {
+  const latRad = (latDeg * Math.PI) / 180;
+  return 111.32 * Math.cos(latRad);
+}
+
+function computeCentroidFromRing(ring: Position[]): [number, number] {
+  let sx = 0; let sy = 0;
+  for (let i = 0; i < ring.length; i++) { sx += ring[i][0]; sy += ring[i][1]; }
+  return [sx / ring.length, sy / ring.length];
+}
+
+function centroidOfPoly(geom: Polygon | MultiPolygon): [number, number] {
+  if (geom.type === 'Polygon') return computeCentroidFromRing(geom.coordinates[0]);
+  const cents = geom.coordinates.map(poly => computeCentroidFromRing(poly[0]));
+  const sx = cents.reduce((a, c) => a + c[0], 0);
+  const sy = cents.reduce((a, c) => a + c[1], 0);
+  return [sx / cents.length, sy / cents.length];
+}
+
+function principalAxisBearing(geoms: (Polygon | MultiPolygon)[], fallbackCenter: [number, number]): { center: [number, number]; bearing: number; bbox: [number, number, number, number] } {
+  const cents: [number, number][] = geoms.map(centroidOfPoly);
+  let cx = fallbackCenter[0];
+  let cy = fallbackCenter[1];
+  if (cents.length) {
+    cx = cents.reduce((a, c) => a + c[0], 0) / cents.length;
+    cy = cents.reduce((a, c) => a + c[1], 0) / cents.length;
+  }
+
+  // bbox
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const g of geoms) {
+    if (g.type === 'Polygon') {
+      for (const p of g.coordinates[0]) { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); }
+    } else {
+      for (const ring of g.coordinates) for (const p of ring[0]) { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); }
+    }
+  }
+  if (!Number.isFinite(minX)) { minX = cx - 0.001; maxX = cx + 0.001; minY = cy - 0.001; maxY = cy + 0.001; }
+
+  // covariance (2x2)
+  let a = 0, b = 0, c = 0; // [a b; b c]
+  if (cents.length >= 2) {
+    for (const [x, y] of cents) {
+      const dx = x - cx; const dy = y - cy;
+      a += dx * dx; b += dx * dy; c += dy * dy;
+    }
+  } else {
+    const dx = (maxX - minX); const dy = (maxY - minY);
+    a = dx * dx; b = dx * dy; c = dy * dy;
+  }
+  const tr = a + c;
+  const det = a * c - b * b;
+  const term = Math.sqrt(Math.max(0, tr * tr - 4 * det));
+  const lambda = (tr + term) / 2; // largest eigenvalue
+  let vx = b; let vy = lambda - a;
+  if (Math.abs(vx) < 1e-9 && Math.abs(vy) < 1e-9) { vx = 1; vy = 0; }
+  const norm = Math.hypot(vx, vy) || 1; vx /= norm; vy /= norm;
+  let bearing = (Math.atan2(vx, vy) * 180) / Math.PI; // 0=N,90=E
+  if (vy < 0) bearing = (bearing + 180) % 360; // northwards for the north arrow
+  return { center: [cx, cy], bearing, bbox: [minX, minY, maxX, maxY] };
+}
+
+function buildDirectionFeaturesFromFC(fc: FeatureCollection<any>): DirFeatures | null {
+  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return null;
+  const polys: (Polygon | MultiPolygon)[] = [];
+  for (const f of fc.features as Feature<any>[]) {
+    const g = f.geometry as Geometry;
+    if (!g) continue;
+    if (g.type === 'Polygon' || g.type === 'MultiPolygon') polys.push(g);
+  }
+  if (polys.length === 0) return null;
+
+  const { center, bearing, bbox: bb } = principalAxisBearing(polys, KASHIWA);
+
+  const meanLat = (bb[1] + bb[3]) / 2;
+  const lonKm = (bb[2] - bb[0]) * kmPerDegreeLon(meanLat);
+  const latKm = (bb[3] - bb[1]) * 111.32;
+  const lengthKm = Math.max(0.15, Math.max(lonKm, latKm) * 1.15);
+  const minDimKm = Math.max(0.03, Math.min(lonKm, latKm));
+  const offsetKm = Math.min(0.08, Math.max(0.02, minDimKm * 0.35));
+  const headLenKm = Math.min(0.06, Math.max(0.025, lengthKm * 0.18));
+  const headWidthKm = Math.max(0.018, headLenKm * 0.5);
+
+  const buildLine = (side: 'north' | 'south') => {
+    const baseBearing = side === 'north' ? bearing : (bearing + 180) % 360;
+    const offBearing = side === 'north' ? bearing - 90 : bearing + 90;
+    const p1 = destination(point(center), lengthKm / 2, baseBearing, { units: 'kilometers' });
+    const p2 = destination(point(center), lengthKm / 2, (baseBearing + 180) % 360, { units: 'kilometers' });
+    const p1o = destination(p1, offsetKm, offBearing, { units: 'kilometers' });
+    const p2o = destination(p2, offsetKm, offBearing, { units: 'kilometers' });
+    const line = lineString([p2o.geometry.coordinates, p1o.geometry.coordinates], { role: 'arrow-line', side, bearing: baseBearing, label: side === 'north' ? '北側' : '南側' });
+    return { baseBearing, tip: p1o.geometry.coordinates as Position, base: p2o.geometry.coordinates as Position, line };
+  };
+
+  const north = buildLine('north');
+  const south = buildLine('south');
+
+  const buildHead = (tip: Position, baseBearing: number, side: 'north' | 'south') => {
+    const baseCenter = destination(point(tip), headLenKm, (baseBearing + 180) % 360, { units: 'kilometers' });
+    const left = destination(baseCenter, headWidthKm, baseBearing - 90, { units: 'kilometers' });
+    const right = destination(baseCenter, headWidthKm, baseBearing + 90, { units: 'kilometers' });
+    const tri = polygon([[
+      left.geometry.coordinates as Position,
+      right.geometry.coordinates as Position,
+      tip,
+      left.geometry.coordinates as Position,
+    ]], { role: 'arrow-head', side });
+    return tri;
+  };
+
+  const northHead = buildHead(north.tip, north.baseBearing, 'north');
+  const southHead = buildHead(south.tip, south.baseBearing, 'south');
+
+  const labelPoint = (side: 'north' | 'south') => {
+    const baseBearing = side === 'north' ? bearing : (bearing + 180) % 360;
+    const offBearing = side === 'north' ? bearing - 90 : bearing + 90;
+    const cOff = destination(point(center), offsetKm, offBearing, { units: 'kilometers' });
+    const pt = point(cOff.geometry.coordinates as Position, { role: 'label', side, label: side === 'north' ? '北側' : '南側', bearing: baseBearing });
+    return pt as TurfFeature<TurfPoint>;
+  };
+
+  const features: Feature<Geometry>[] = [
+    north.line as any,
+    south.line as any,
+    northHead as any,
+    southHead as any,
+    labelPoint('north') as any,
+    labelPoint('south') as any,
+  ];
+
+  return { type: 'FeatureCollection', features } as DirFeatures;
 }
 
 export default function Spots() {
@@ -584,6 +725,10 @@ export default function Spots() {
       const SLOTS_FILL = 'subspots-slots-fill';
       const SLOTS_LINE = 'subspots-slots-line';
       const SLOTS_LABEL = 'subspots-slots-label';
+      const DIR_NORTH_LINE = 'dir-north-line';
+      const DIR_SOUTH_LINE = 'dir-south-line';
+      const DIR_HEAD = 'dir-head';
+      const DIR_LABEL = 'dir-label';
 
       // Prefer server rectangles if any exist, otherwise fallback to fake preview road+slots
       const fcHasServer = (spotFC?.features?.length ?? 0) > 0;
@@ -608,6 +753,18 @@ export default function Spots() {
         if (map.getLayer(id)) map.removeLayer(id);
         map.addLayer(layer as any);
       };
+
+      // Build/update parking direction features source
+      const dirFC = buildDirectionFeaturesFromFC(useFC as any);
+      if (dirFC) {
+        if (map.getSource(DIR_SRC_ID)) {
+          (map.getSource(DIR_SRC_ID) as maplibregl.GeoJSONSource).setData(dirFC as any);
+        } else {
+          map.addSource(DIR_SRC_ID, { type: 'geojson', data: dirFC } as any);
+        }
+      } else if (map.getSource(DIR_SRC_ID)) {
+        (map.getSource(DIR_SRC_ID) as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [] } as any);
+      }
 
       // Only draw the ROAD layer if we’re using preview (server rectangles won’t have a road line)
       if (!fcHasServer) {
@@ -680,6 +837,46 @@ export default function Spots() {
         },
         paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
       });
+
+      // Direction layers (top of map shapes)
+      if (map.getSource(DIR_SRC_ID)) {
+        ensure(DIR_NORTH_LINE, {
+          id: DIR_NORTH_LINE,
+          type: 'line',
+          source: DIR_SRC_ID,
+          filter: ['all', ['==', ['get', 'role'], 'arrow-line'], ['==', ['get', 'side'], 'north']],
+          paint: { 'line-color': COLOR_DIR, 'line-width': 4, 'line-opacity': 0.85 },
+        });
+        ensure(DIR_SOUTH_LINE, {
+          id: DIR_SOUTH_LINE,
+          type: 'line',
+          source: DIR_SRC_ID,
+          filter: ['all', ['==', ['get', 'role'], 'arrow-line'], ['==', ['get', 'side'], 'south']],
+          paint: { 'line-color': COLOR_DIR, 'line-width': 4, 'line-opacity': 0.85 },
+        });
+        ensure(DIR_HEAD, {
+          id: DIR_HEAD,
+          type: 'fill',
+          source: DIR_SRC_ID,
+          filter: ['==', ['get', 'role'], 'arrow-head'],
+          paint: { 'fill-color': COLOR_DIR, 'fill-opacity': 0.9 },
+        });
+        ensure(DIR_LABEL, {
+          id: DIR_LABEL,
+          type: 'symbol',
+          source: DIR_SRC_ID,
+          filter: ['==', ['get', 'role'], 'label'],
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-size': 12,
+            'text-allow-overlap': true,
+            'text-rotation-alignment': 'map',
+            'text-rotate': ['get', 'bearing'],
+            'text-offset': [0, 0.8],
+          },
+          paint: { 'text-color': COLOR_DIR, 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
+        });
+      }
 
       // SAFE FIT
       fitToDataOrFallback(map, useFC, KASHIWA);
@@ -932,5 +1129,4 @@ export default function Spots() {
         />
       )}
     </>
-  );
-}
+  )}
