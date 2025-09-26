@@ -593,10 +593,11 @@ export default function MapHighlight({
         source: SRC_ID,
         filter: ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']],
         paint: {
-          // CHANGED: ramp by freeRatio with fallback to 'color'
+          // Prefer per-feature uniqueColor, then explicit color, else availability ramp
           'fill-color': [
-            'case',
-            ['has', 'color'], ['get', 'color'],
+            'coalesce',
+            ['get', 'uniqueColor'],
+            ['get', 'color'],
             ['interpolate', ['linear'], ['get', 'freeRatio'],
               0.0, '#ef4444',   // 0% free -> red
               0.5, '#f59e0b',   // 50%     -> amber
@@ -620,7 +621,7 @@ export default function MapHighlight({
         source: SRC_ID,
         filter: ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']],
         paint: {
-          'line-color': ['coalesce', ['get', 'color'], '#111827'],
+          'line-color': ['coalesce', ['get', 'uniqueColor'], ['get', 'color'], '#111827'],
           'line-width': [
             'case',
             ['boolean', ['feature-state', 'selected'], false],

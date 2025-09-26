@@ -250,6 +250,37 @@ async function main() {
   const allowed = new Set<string>(REGION_CODES as readonly string[]);
   const regions = allRegions.filter(r => r.code && allowed.has(r.code));
 
+  // Build distinct colors for regions (unique per region in this set)
+  const toHex = (h: number, s = 65, l = 55) => {
+    // Robust HSL → HEX conversion producing valid #RRGGBB
+    let H = h % 360;
+    if (H < 0) H += 360;
+    const S = Math.max(0, Math.min(1, s / 100));
+    const L = Math.max(0, Math.min(1, l / 100));
+    const C = (1 - Math.abs(2 * L - 1)) * S;
+    const X = C * (1 - Math.abs(((H / 60) % 2) - 1));
+    const m = L - C / 2;
+    let r1 = 0, g1 = 0, b1 = 0;
+    if (H < 60)         { r1 = C; g1 = X; b1 = 0; }
+    else if (H < 120)   { r1 = X; g1 = C; b1 = 0; }
+    else if (H < 180)   { r1 = 0; g1 = C; b1 = X; }
+    else if (H < 240)   { r1 = 0; g1 = X; b1 = C; }
+    else if (H < 300)   { r1 = X; g1 = 0; b1 = C; }
+    else                { r1 = C; g1 = 0; b1 = X; }
+    const R = Math.round((r1 + m) * 255);
+    const G = Math.round((g1 + m) * 255);
+    const B = Math.round((b1 + m) * 255);
+    const hex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0');
+    return `#${hex(R)}${hex(G)}${hex(B)}`;
+  };
+  const sortedForColors = [...regions].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? ''));
+  const colorByRegionId = new Map<string, string>();
+  const N = Math.max(1, sortedForColors.length);
+  for (let i = 0; i < sortedForColors.length; i++) {
+    const hue = (i * 360) / N;
+    colorByRegionId.set(sortedForColors[i].id, toHex(hue));
+  }
+
   if (regions.length === 0) {
     console.error('No target regions found. Make sure your DB has the 4 codes:', REGION_CODES.join(', '));
     process.exit(1);
@@ -284,6 +315,7 @@ Region ${code}:`);
       regionId: r.id,
       regionCode: code,
       regionName: r.name ?? null,
+      color: colorByRegionId.get(r.id) ?? '#38bdf8',
     });
     await db
       .update(schema.regions)
