@@ -429,6 +429,7 @@ const japaneseDirection = (d: string | null | undefined): string => {
 };
 
 const formatSpotLabel = (regionCode: string | null, spotOrder: number | null): string => {
+  // Fall back to 1 when regionCode is missing to avoid empty circled digit
   const regionOrdinal = parseRegionOrdinalFromCode(regionCode);
   const circle = toCircledNumber(regionOrdinal);
   const spotNumber = spotOrder && spotOrder > 0 ? spotOrder : 1;
@@ -438,8 +439,28 @@ const formatSpotLabel = (regionCode: string | null, spotOrder: number | null): s
 const formatSubSpotLabel = (regionCode: string | null, spotOrder: number | null, subspotOrder: number | null): string => {
   const spotLabel = formatSpotLabel(regionCode, spotOrder);
   const order = subspotOrder && subspotOrder > 0 ? subspotOrder : 1;
-  return `${spotLabel}（${order}台目）`;
+  // Legacy fallback (not used for CSV after we added code-based parsing)
+  return `${spotLabel}・${order}台目`;
 };
+
+// Prefer parsing the sub_spots.code value (e.g., "kukan-01-S01-SS01")
+// to generate a stable label matching user expectation: "スポット① - 1 - 1".
+function labelFromSubSpotCode(code?: string | null): string | null {
+  if (!code || typeof code !== 'string') return null;
+  const m = code.match(/kukan-(\d+)-S(\d+)-SS(\d+)/i);
+  if (!m) return null;
+  const regionStr = m[1];
+  const spotStr = m[2];
+  const subStr = m[3];
+  if (!regionStr || !spotStr || !subStr) return null;
+  const regionNum = parseInt(regionStr, 10);
+  const spotNum = parseInt(spotStr, 10);
+  const subNum = parseInt(subStr, 10);
+  if (!Number.isFinite(regionNum) || !Number.isFinite(spotNum) || !Number.isFinite(subNum)) return null;
+  const circle = toCircledNumber(Math.max(1, regionNum));
+  // Format with spaces around hyphens as requested
+  return `スポット${circle} - ${spotNum} - ${subNum}`;
+}
 
 // const BOOKING_EXPORT_HEADERS = ['ID', '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', '\u958b\u59cb\u6642\u523b', '\u7d42\u4e86\u6642\u523b', '\u8eca\u7a2e', '\u30e1\u30e2'];
 const BOOKING_EXPORT_HEADERS = [
@@ -589,9 +610,13 @@ bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) 
   const bookings = await fetchBookingExportRows(scope, userId, spotId);
 
   const tableRows = bookings.map((row) => {
+    // First try to build from sub_spots.code as requested
+    const fromCode = labelFromSubSpotCode(row.sub_spot_code);
+    // Fallback to derived label if code parsing fails
     const spotOrder = typeof row.spot_order === 'number' ? row.spot_order : Number(row.spot_order ?? 0);
     const subspotOrder = typeof row.subspot_order === 'number' ? row.subspot_order : Number(row.subspot_order ?? 0);
-    const subSpotDisplay = formatSubSpotLabel(row.region_code ?? null, spotOrder, subspotOrder);
+    const fallbackDisplay = formatSubSpotLabel(row.region_code ?? null, spotOrder, subspotOrder);
+    const subSpotDisplay = fromCode ?? fallbackDisplay;
     return [
       row.id,
       subSpotDisplay,
