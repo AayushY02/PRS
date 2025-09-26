@@ -84,6 +84,8 @@ async function buildSpotsPayload(
         geometry: s.geometry,
         isBusyNow,
         isMineNow,
+        startTime: a ? a.start_time : null,
+        direction: a ? a.direction : null,
         myStartTime: isMineNow && a ? a.start_time : null,
         myDirection: isMineNow && a ? a.direction : 'north', // ✅ NEW
       };

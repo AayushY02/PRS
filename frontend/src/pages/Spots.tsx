@@ -40,6 +40,7 @@ type SubSpotRow = {
   isBusyNow: boolean;
   isMineNow: boolean;
   myStartTime: string | null;
+  startTime?: string | null;
   geometry?: any | null; // Polygon | MultiPolygon | Feature
   displayLabel?: string;
   slotOrder?: number;
@@ -549,6 +550,12 @@ export default function Spots() {
 
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<SubSpotRow | null>(null);
+  // Tick every second to refresh elapsed timers on cards
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => (t + 1) % 3600), 1000);
+    return () => clearInterval(id);
+  }, []);
   const subSpotById = useMemo(() => {
     const m = new Map<string, SubSpotRow>();
     flatAll.forEach(s => m.set(s.id, s));
@@ -1058,7 +1065,7 @@ export default function Spots() {
                     {p.subSpots.map((s, idx) => {
                       const isMine = s.isMineNow;
                       const isBusy = s.isBusyNow;
-                      const elapsed = isMine ? formatElapsed(s.myStartTime) : null;
+                      const elapsed = isMine ? formatElapsed(s.myStartTime) : formatElapsed((s as any).startTime ?? null);
                       const accent =
                         isMine ? 'from-emerald-500/15 to-emerald-500/0 border-emerald-500/30'
                           : isBusy ? 'from-zinc-500/10 to-zinc-500/0 border-zinc-500/20'
@@ -1097,6 +1104,11 @@ export default function Spots() {
                               ) : (
                                 <Badge variant="outline">空き</Badge>
                               )}
+                              {!isMine && isBusy && elapsed && (
+                                <span className="inline-flex items-center text-[11px] text-muted-foreground gap-1 font-mono">
+                                  <Clock className="h-3 w-3" /> {elapsed}
+                                </span>
+                              )}
                             </div>
                             <Button
                               size="sm"
@@ -1125,7 +1137,7 @@ export default function Spots() {
           onOpenChange={(v) => { if (!v) closeSheet(); else setOpen(true); }}
           subSpotId={chosen.id}
           subSpotCode={chosen.displayLabel ?? chosen.code}
-          myStartTime={chosen.myStartTime ?? undefined}
+          myStartTime={chosen.myStartTime ?? (chosen as any).startTime ?? undefined}
           canForceEnd={myIsMaster && chosen.isBusyNow && !chosen.isMineNow}
           onSuccess={async (action) => {
             const map = mapRef.current;
