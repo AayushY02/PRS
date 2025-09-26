@@ -523,6 +523,7 @@ export default function Spots() {
     retry: false,
   });
   const myUserId: string | null = me?.userId ?? null;
+  const myIsMaster: boolean = !!(me?.isMaster);
 
   const regionOrdinal = parseRegionOrdinal(region);
   const regionCircle = toCircledNumber(regionOrdinal);
@@ -1125,11 +1126,12 @@ export default function Spots() {
           subSpotId={chosen.id}
           subSpotCode={chosen.displayLabel ?? chosen.code}
           myStartTime={chosen.myStartTime ?? undefined}
-          onSuccess={async () => {
+          canForceEnd={myIsMaster && chosen.isBusyNow && !chosen.isMineNow}
+          onSuccess={async (action) => {
             const map = mapRef.current;
             const spotId = chosen.spotId;
             if (map && spotId) {
-              const nextState = chosen.isMineNow ? 'available' : 'mine';
+              const nextState = action === 'start' ? 'mine' : action === 'end' ? 'available' : (chosen.isMineNow ? 'mine' : (chosen.isBusyNow ? 'busy' : 'available'));
               map.setFeatureState?.({ source: SRC_ID, id: spotId } as any, { state: nextState });
               liveStatesRef.current.set(spotId, nextState);
             }

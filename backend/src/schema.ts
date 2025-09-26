@@ -1,5 +1,5 @@
 // backend/src/schema.ts
-import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, integer, unique, customType, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, integer, unique, customType, jsonb, boolean } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 type GJ = any;
 export const directionEnum = pgEnum('direction', ['north', 'south']);
@@ -17,6 +17,8 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  // Master users can manage any booking (start/end regardless of owner)
+  isMaster: boolean('is_master').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

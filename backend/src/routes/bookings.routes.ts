@@ -184,12 +184,28 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
 
 bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
+
+
+  const isMaster = !!(req as any).isMaster;
   const parsed = StartBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { subSpotId, comment, vehicleType, direction } = parsed.data;
 
   try {
+    // Master can override: end any current active booking on this sub-spot before inserting a new one
+    if (isMaster) {
+      try {
+        await db.execute(raw`
+          UPDATE bookings
+          SET time_range = tstzrange(lower(time_range), NOW(), '[)'),
+              status = 'completed'
+          WHERE sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+        `);
+      } catch { /* ignore; best-effort */ }
+    }
     const r = await db.execute(raw`
       INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, direction, status)
       VALUES (
@@ -232,22 +248,33 @@ const EndBooking = z.object({
 
 bookingsRouter.post('/end', authRequired, async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
+  const isMaster = !!(req as any).isMaster;
   const parsed = EndBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { subSpotId } = parsed.data;
 
   try {
-    const r = await db.execute(raw`
-      UPDATE bookings
-      SET time_range = tstzrange(lower(time_range), NOW(), '[)'),
-          status = 'completed'
-      WHERE user_id = ${userId}::uuid
-        AND sub_spot_id = ${subSpotId}::uuid
-        AND status = 'active'
-        AND NOW() <@ time_range
-      RETURNING id
-    `);
+    const r = isMaster
+      ? await db.execute(raw`
+          UPDATE bookings
+          SET time_range = tstzrange(lower(time_range), NOW(), '[)'),
+              status = 'completed'
+          WHERE sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+          RETURNING id
+        `)
+      : await db.execute(raw`
+          UPDATE bookings
+          SET time_range = tstzrange(lower(time_range), NOW(), '[)'),
+              status = 'completed'
+          WHERE user_id = ${userId}::uuid
+            AND sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+          RETURNING id
+        `);
 
     if ((r as any).rows?.length === 0) {
       return res.status(404).json({ error: 'No active booking to end' });
@@ -300,6 +327,7 @@ bookingsRouter.get('/mine', authRequired, async (req: Request, res: Response) =>
  */
 bookingsRouter.delete('/:id', authRequired, async (req, res) => {
   const userId = (req as any).userId as string | undefined;
+  const isMaster = !!(req as any).isMaster;
   const idParam = req.params?.id;
 
   if (!userId || !idParam) {
@@ -308,14 +336,19 @@ bookingsRouter.delete('/:id', authRequired, async (req, res) => {
 
   try {
     // Only cancel active bookings owned by the user; return sub_spot_id for broadcast
+    const conditions = [
+      eq(schema.bookings.id, idParam),
+      eq(schema.bookings.status, 'active' as const),
+    ];
+    if (!isMaster) {
+      conditions.push(eq(schema.bookings.userId, userId!));
+    }
     const r = await db
       .update(schema.bookings)
       .set({ status: 'cancelled' as const, timeRange: raw`tstzrange(lower(time_range), NOW(), '[)')` as any })
       .where(
         and(
-          eq(schema.bookings.id, idParam),
-          eq(schema.bookings.userId, userId),
-          eq(schema.bookings.status, 'active' as const)
+          ...conditions
         )
       )
       .returning({

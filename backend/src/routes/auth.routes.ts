@@ -71,7 +71,7 @@ authRouter.get('/me', async (req: Request, res: Response) => {
     if (!sub) return res.json({ user: null });
 
     const [u] = await db
-      .select({ id: schema.users.id, email: schema.users.email })
+      .select({ id: schema.users.id, email: schema.users.email, isMaster: schema.users.isMaster })
       .from(schema.users)
       .where(eq(schema.users.id, sub))
       .limit(1);
@@ -83,9 +83,20 @@ authRouter.get('/me', async (req: Request, res: Response) => {
   }
 });
 
-authRouter.get('/whoami', authOptional, (req: Request, res: Response) => {
+authRouter.get('/whoami', authOptional, async (req: Request, res: Response) => {
   const userId = (req as any).userId ?? null;
-  res.json({ userId });
+  if (!userId) return res.json({ userId: null, isMaster: false });
+  try {
+    const [u] = await db
+      .select({ id: schema.users.id, isMaster: schema.users.isMaster })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!u) return res.json({ userId: null, isMaster: false });
+    res.json({ userId: u.id, isMaster: !!u.isMaster });
+  } catch {
+    res.json({ userId: null, isMaster: false });
+  }
 });
 
 /**

@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { neon } from '@neondatabase/serverless';
 import 'dotenv/config';
 
-const root = fileURLToPath(new URL(__dirname , '..'));
+// Resolve project root (CJS). __dirname -> backend/src/scripts, step back twice => backend/
+const root = join(__dirname, '..', '..');
 const neonSql = neon(process.env.DATABASE_URL!);
 
 // Split SQL into statements by semicolons not inside strings/comments/dollar-quoted bodies.
@@ -161,6 +161,7 @@ const files = [
   '0000_extensions.sql',
   '0001_schema.sql',
   '0002_constraints.sql',
+  '0003_master_user.sql',
 ];
 
 async function run() {

@@ -56,8 +56,10 @@ type Props = {
   onOpenChange: (v: boolean) => void;
   subSpotId: string;
   subSpotCode: string;
-  onSuccess: () => void;
+  onSuccess: (action: 'start' | 'end' | 'update') => void;
   myStartTime?: string | null;
+  // When true, allow ending someone else's active booking (master override)
+  canForceEnd?: boolean;
 };
 
 function useActiveTimer(activeSince?: string | null) {
@@ -103,6 +105,7 @@ export default function SpotBookingSheet({
   subSpotCode,
   onSuccess,
   myStartTime,
+  canForceEnd = false,
 }: Props) {
   // Error message to display via shadcn Alert
   const [error, setError] = useState<string | null>(null);
@@ -181,7 +184,7 @@ export default function SpotBookingSheet({
         comment: comment.trim() || null,
         direction,
       });
-      onSuccess();
+      onSuccess('start');
       onOpenChange(false);
     } catch (e: any) {
       // Show error via Alert instead of native alert
@@ -202,7 +205,7 @@ export default function SpotBookingSheet({
         direction,
       });
       // refresh counters/map
-      onSuccess();
+      onSuccess('update');
       // refresh "initial" to current so dirty becomes false
       setInitial({ vehicleType: vehicle, comment, direction });
     } catch (e: any) {
@@ -218,7 +221,7 @@ export default function SpotBookingSheet({
     setError(null);
     try {
       await api.post('/api/bookings/end', { subSpotId });
-      onSuccess();
+      onSuccess('end');
       setEndDialogOpen(false);
       onOpenChange(false);
     } catch (e: any) {
@@ -463,7 +466,7 @@ export default function SpotBookingSheet({
               <AlertDialogTrigger asChild>
                 <Button
                   variant="destructive"
-                  disabled={!isActive || submitting !== null}
+                  disabled={(!isActive && !canForceEnd) || submitting !== null}
                   className="rounded-xl h-11"
                 >
                   {submitting === 'end' ? (
