@@ -31,7 +31,7 @@ const REGION_SPOT_COUNTS: Record<RegionCode, number> = {
   'kukan-07': 5,
 };
 
-const SUBSPOTS_PER_SPOT = 4;
+const SUBSPOTS_PER_SPOT = 8;
 
 
 const KASHIWA: [number, number] = [139.9698, 35.8617];

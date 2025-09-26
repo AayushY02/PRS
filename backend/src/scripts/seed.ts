@@ -59,7 +59,7 @@ async function run() {
 
       const baseCode = `${region.code}-S${spotSuffix}`;
 
-      for (let subIndex = 1; subIndex <= 4; subIndex++) {
+      for (let subIndex = 1; subIndex <= 8; subIndex++) {
         await db.insert(schema.subSpots).values({
           spotId: spot.id,
           idx: subIndex,
