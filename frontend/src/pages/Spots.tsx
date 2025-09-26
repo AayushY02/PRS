@@ -1047,7 +1047,7 @@ export default function Spots() {
                   <div className="w-full flex items-center justify-between pr-2">
                     <div className="text-base font-semibold">{p.displayLabel ?? formatParentLabel(regionCircle, (p.order ?? 0) || 1)}</div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="font-mono">{p.subSpots.length}/{totalAll}</Badge>
+                      <Badge variant="secondary" className="font-mono">{availAll}/{totalAll}</Badge>
                       <Badge variant="outline" className="hidden xs:inline-flex">空き {availAll}</Badge>
                       <Badge variant="outline" className="hidden xs:inline-flex">使用 {busyAll}</Badge>
                     </div>

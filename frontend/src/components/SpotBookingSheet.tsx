@@ -133,7 +133,9 @@ export default function SpotBookingSheet({
     let abort = false;
     async function loadActive() {
       if (!open) return;
-      if (!isActive) { setInitial(null); return; }
+      // For masters editing someone else's ongoing booking, also fetch
+      const shouldFetch = isActive || canForceEnd;
+      if (!shouldFetch) { setInitial(null); return; }
       try {
         const r = await api.get('/api/bookings/active', { params: { subSpotId } });
         if (abort) return;
@@ -152,7 +154,7 @@ export default function SpotBookingSheet({
     }
     loadActive();
     return () => { abort = true; };
-  }, [open, isActive, subSpotId]);
+  }, [open, isActive, canForceEnd, subSpotId]);
 
   // Only clear fields on close if there is no active booking
   useEffect(() => {
@@ -441,7 +443,7 @@ export default function SpotBookingSheet({
           </div>
 
           {/* Actions */}
-          <div className={`grid ${isActive ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1`}>
+          <div className={`grid ${(isActive || canForceEnd) ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1`}>
             <Button
               variant={isActive ? 'secondary' : 'default'}
               onClick={startBooking}
@@ -505,7 +507,7 @@ export default function SpotBookingSheet({
               </AlertDialogContent>
             </AlertDialog>
 
-            {isActive && (
+            {(isActive || canForceEnd) && (
               <Button
                 variant="default"
                 onClick={updateBooking}

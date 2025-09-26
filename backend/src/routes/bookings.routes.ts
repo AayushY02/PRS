@@ -95,28 +95,45 @@ const StartBooking = z.object({
 
 bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
+  const isMaster = !!(req as any).isMaster;
   const parsed = ActiveBookingQuery.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { subSpotId } = parsed.data;
 
   try {
-    const r = await db.execute(raw`
-      SELECT
-        id,
-        sub_spot_id,
-        comment,
-        vehicle_type,
-        direction,
-        lower(time_range) AS start_time
-      FROM bookings
-      WHERE user_id = ${userId}::uuid
-        AND sub_spot_id = ${subSpotId}::uuid
-        AND status = 'active'
-        AND NOW() <@ time_range
-      ORDER BY lower(time_range) DESC
-      LIMIT 1
-    `);
+    const r = isMaster
+      ? await db.execute(raw`
+          SELECT
+            id,
+            sub_spot_id,
+            comment,
+            vehicle_type,
+            direction,
+            lower(time_range) AS start_time
+          FROM bookings
+          WHERE sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+          ORDER BY lower(time_range) DESC
+          LIMIT 1
+        `)
+      : await db.execute(raw`
+          SELECT
+            id,
+            sub_spot_id,
+            comment,
+            vehicle_type,
+            direction,
+            lower(time_range) AS start_time
+          FROM bookings
+          WHERE user_id = ${userId}::uuid
+            AND sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+          ORDER BY lower(time_range) DESC
+          LIMIT 1
+        `);
 
     const row = (r as any)?.rows?.[0];
     if (!row) return res.status(404).json({ error: 'No active booking' });
@@ -139,6 +156,7 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
 
 bookingsRouter.post('/update', authRequired, async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
+  const isMaster = !!(req as any).isMaster;
   const parsed = UpdateBookingBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -155,15 +173,24 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
     if (direction !== undefined) sets.push(sql`direction = ${direction}::direction`);
     sets.push(sql`updated_at = NOW()`);
 
-    const r = await db.execute(sql`
-      UPDATE bookings
-      SET ${sql.join(sets, sql`, `)}
-      WHERE user_id = ${userId}::uuid
-        AND sub_spot_id = ${subSpotId}::uuid
-        AND status = 'active'
-        AND NOW() <@ time_range
-      RETURNING id, sub_spot_id, vehicle_type, comment, direction
-    `);
+    const r = isMaster
+      ? await db.execute(sql`
+          UPDATE bookings
+          SET ${sql.join(sets, sql`, `)}
+          WHERE sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+          RETURNING id, sub_spot_id, vehicle_type, comment, direction
+        `)
+      : await db.execute(sql`
+          UPDATE bookings
+          SET ${sql.join(sets, sql`, `)}
+          WHERE user_id = ${userId}::uuid
+            AND sub_spot_id = ${subSpotId}::uuid
+            AND status = 'active'
+            AND NOW() <@ time_range
+          RETURNING id, sub_spot_id, vehicle_type, comment, direction
+        `);
 
     const row = (r as any)?.rows?.[0];
     if (!row) return res.status(404).json({ error: 'No active booking to update' });
