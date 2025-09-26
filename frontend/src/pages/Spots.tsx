@@ -520,7 +520,11 @@ export default function Spots() {
         return { userId: null }; // treat as anonymous
       }
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    gcTime: 0,                // v4 name; in v5 use gcTime
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: false,
   });
   const myUserId: string | null = me?.userId ?? null;
@@ -1138,6 +1142,9 @@ export default function Spots() {
           subSpotId={chosen.id}
           subSpotCode={chosen.displayLabel ?? chosen.code}
           myStartTime={chosen.myStartTime ?? (chosen as any).startTime ?? undefined}
+          myIsMaster={myIsMaster}
+          isMineNow={chosen.isMineNow}
+          isBusyNow={chosen.isBusyNow}
           canForceEnd={myIsMaster && chosen.isBusyNow && !chosen.isMineNow}
           onSuccess={async (action) => {
             const map = mapRef.current;
@@ -1157,4 +1164,5 @@ export default function Spots() {
         />
       )}
     </>
-  )}
+  )
+}

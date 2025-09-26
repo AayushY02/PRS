@@ -60,6 +60,9 @@ type Props = {
   myStartTime?: string | null;
   // When true, allow ending someone else's active booking (master override)
   canForceEnd?: boolean;
+  isBusyNow: boolean;
+  myIsMaster: boolean;
+  isMineNow: boolean;
 };
 
 function useActiveTimer(activeSince?: string | null) {
@@ -106,6 +109,9 @@ export default function SpotBookingSheet({
   onSuccess,
   myStartTime,
   canForceEnd = false,
+  myIsMaster,
+  isBusyNow,
+  isMineNow
 }: Props) {
   // Error message to display via shadcn Alert
   const [error, setError] = useState<string | null>(null);
@@ -356,6 +362,7 @@ export default function SpotBookingSheet({
             <Select
               value={vehicle}
               onValueChange={(v) => setVehicle(v as Vehicle)}
+              disabled={!myIsMaster && isBusyNow && !isMineNow}
             >
               <SelectTrigger id="vehicle" className="w-full rounded-xl h-10">
                 <SelectValue placeholder="車種を選んでください…" />
@@ -391,6 +398,8 @@ export default function SpotBookingSheet({
               onChange={(e) => setComment(e.target.value.slice(0, NOTE_LIMIT))}
               className="rounded-xl"
               rows={3}
+              disabled={!myIsMaster && isBusyNow && !isMineNow }
+
             />
             <Progress value={charPct} className="h-1.5" />
 
@@ -402,6 +411,8 @@ export default function SpotBookingSheet({
                   variant={direction === 'north' ? 'default' : 'outline'}
                   className="rounded-full"
                   onClick={() => setDirection('north')}
+                  disabled={!myIsMaster && isBusyNow && !isMineNow}
+
                 >
                   北側方向
                 </Button>
@@ -410,6 +421,8 @@ export default function SpotBookingSheet({
                   variant={direction === 'south' ? 'default' : 'outline'}
                   className="rounded-full"
                   onClick={() => setDirection('south')}
+                  disabled={!myIsMaster && isBusyNow && !isMineNow}
+
                 >
                   南側方向
                 </Button>
@@ -443,7 +456,7 @@ export default function SpotBookingSheet({
           </div>
 
           {/* Actions */}
-          <div className={`grid ${(isActive || canForceEnd) ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1`}>
+          <div className={`grid ${(isActive && (isMineNow || myIsMaster) || canForceEnd) ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1`}>
             <Button
               variant={isActive ? 'secondary' : 'default'}
               onClick={startBooking}
@@ -468,7 +481,7 @@ export default function SpotBookingSheet({
               <AlertDialogTrigger asChild>
                 <Button
                   variant="destructive"
-                  disabled={(!isActive && !canForceEnd) || submitting !== null}
+                  disabled={(!(isMineNow || myIsMaster) && isActive) || submitting !== null || !isActive}
                   className="rounded-xl h-11"
                 >
                   {submitting === 'end' ? (
@@ -507,7 +520,7 @@ export default function SpotBookingSheet({
               </AlertDialogContent>
             </AlertDialog>
 
-            {(isActive || canForceEnd) && (
+            {(isActive && (isMineNow || myIsMaster) || canForceEnd) && (
               <Button
                 variant="default"
                 onClick={updateBooking}
