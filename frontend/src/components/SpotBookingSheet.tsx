@@ -123,15 +123,32 @@ export default function SpotBookingSheet({
   const [submitting, setSubmitting] = useState<null | 'start' | 'end' | 'update'>(null);
   const [copied, setCopied] = useState(false);
 
-  const { elapsed: elapsedDuration, current: currentMoment } = useActiveTimer(myStartTime ?? null);
+  const [optimisticStartAt, setOptimisticStartAt] = useState<string | null>(null);
+  // When server-provided start time changes, drop optimistic override
+  useEffect(() => { setOptimisticStartAt(null); }, [myStartTime]);
+
+  const effectiveStart = optimisticStartAt !== null ? optimisticStartAt : (myStartTime ?? null);
+  const { elapsed: elapsedDuration, current: currentMoment } = useActiveTimer(effectiveStart ?? null);
   const remaining = Math.max(0, NOTE_LIMIT - comment.length);
   const charPct = ((NOTE_LIMIT - remaining) / NOTE_LIMIT) * 100;
-  const isActive = !!myStartTime;
-  const startTimeDisplay = formatClockTime(myStartTime ?? null);
+  const isActive = !!effectiveStart;
+  const startTimeDisplay = formatClockTime(effectiveStart ?? null);
   const endTimeDisplay = formatClockTime(currentMoment ?? null);
   const elapsedDisplay = elapsedDuration ?? '00:00:00';
   const [direction, setDirection] = useState<'north' | 'south'>('north');
   const [initial, setInitial] = useState<ActiveBooking | null>(null); // for dirty check
+
+  function resetFields() {
+    setComment('');
+    setVehicle('normal');
+    setSubmitting(null);
+    setCopied(false);
+    setError(null);
+    setEndDialogOpen(false);
+    setDirection('north');
+    setInitial(null);
+    setOptimisticStartAt(null);
+  }
 
 
 
@@ -165,16 +182,17 @@ export default function SpotBookingSheet({
   // Only clear fields on close if there is no active booking
   useEffect(() => {
     if (!open && !isActive) {
-      setComment('');
-      setVehicle('normal');
-      setSubmitting(null);
-      setCopied(false);
-      setError(null);
-      setEndDialogOpen(false);
-      setDirection('north');
-      setInitial(null);
+      resetFields();
     }
   }, [open, isActive]);
+
+  // When reopening the sheet right after ending, ensure we don't show stale data.
+  useEffect(() => {
+    if (open && !isActive && !canForceEnd) {
+      // Freshly opened with no active booking: wipe any lingering state
+      resetFields();
+    }
+  }, [open, isActive, canForceEnd]);
 
   const dirty =
     initial !== null &&
@@ -186,6 +204,9 @@ export default function SpotBookingSheet({
     setSubmitting('start');
     setError(null);
     try {
+      // Optimistic flip-on
+      const nowISO = new Date().toISOString();
+      setOptimisticStartAt(nowISO);
       await api.post('/api/bookings/start', {
         subSpotId,
         vehicleType: vehicle,
@@ -197,6 +218,8 @@ export default function SpotBookingSheet({
     } catch (e: any) {
       // Show error via Alert instead of native alert
       setError(e?.response?.data?.error ?? 'Failed to start booking');
+      // revert optimistic change
+      setOptimisticStartAt(null);
     } finally {
       setSubmitting(null);
     }
@@ -227,7 +250,11 @@ export default function SpotBookingSheet({
   async function endBooking() {
     setSubmitting('end');
     setError(null);
+    // Remember current start for potential revert
+    let prevStart: string | null = effectiveStart ?? null;
     try {
+      // Optimistic flip-off
+      setOptimisticStartAt(null);
       await api.post('/api/bookings/end', { subSpotId });
       onSuccess('end');
       setEndDialogOpen(false);
@@ -235,6 +262,8 @@ export default function SpotBookingSheet({
     } catch (e: any) {
       // Show error via Alert instead of native alert
       setError(e?.response?.data?.error ?? 'Failed to end booking');
+      // revert optimistic change
+      setOptimisticStartAt(prevStart ?? (myStartTime ?? null));
     } finally {
       setSubmitting(null);
     }

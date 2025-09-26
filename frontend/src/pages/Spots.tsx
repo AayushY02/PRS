@@ -58,6 +58,9 @@ type ParentSpotRow = {
   order?: number;
 };
 
+// React Query data shape for ['spots', regionId]
+type SpotsQueryData = { region?: any; spots: ParentSpotRow[] };
+
 const ENV_API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '');
 const IS_LOCALHOST = typeof window !== 'undefined' && /^localhost(?::\d+)?$/.test(window.location.hostname);
 export const API_BASE = ENV_API_BASE || (IS_LOCALHOST ? 'http://localhost:8080' : '');
@@ -948,6 +951,24 @@ export default function Spots() {
         if (map && isStyleLoadedSafe(map) && map.getSource(SRC_ID)) {
           map.setFeatureState({ source: SRC_ID, id: spotId } as any, { state });
         }
+        // Optimistically update react-query cache for the list/cards immediately
+        const isMine = myUserId && msg.userId === myUserId;
+        qc.setQueryData<SpotsQueryData>(['spots', regionId], (old: SpotsQueryData | undefined) => {
+          if (!old || !Array.isArray(old.spots)) return old;
+          const nextSpots = old.spots.map((p: any) => {
+            if (!Array.isArray(p.subSpots)) return p;
+            const nextSubs = p.subSpots.map((s: any) => {
+              if (s.id !== msg.subSpotId) return s;
+              if (msg.event === 'start') {
+                return { ...s, isBusyNow: true, isMineNow: !!isMine, myStartTime: isMine ? (new Date().toISOString()) : s.myStartTime };
+              } else {
+                return { ...s, isBusyNow: false, isMineNow: false, myStartTime: null };
+              }
+            });
+            return { ...p, subSpots: nextSubs };
+          });
+          return { ...old, spots: nextSpots };
+        });
 
         // refresh list/counters in background
         qc.invalidateQueries({ queryKey: ['spots', regionId] });
@@ -1149,6 +1170,39 @@ export default function Spots() {
           onSuccess={async (action) => {
             const map = mapRef.current;
             const spotId = chosen.spotId;
+            // Optimistically update local chosen state and React Query cache
+            const nowISO = new Date().toISOString();
+            const applyLocal = (isStart: boolean) => {
+              // Update currently selected sub-spot so the sheet/list reflects instantly
+              setChosen(prev => prev ? {
+                ...prev,
+                isBusyNow: isStart ? true : false,
+                isMineNow: isStart ? true : false,
+                myStartTime: isStart ? nowISO : null,
+              } : prev);
+
+              // Update the cached spots query data for immediate UI feedback
+              qc.setQueryData<SpotsQueryData>(['spots', regionId], (old: SpotsQueryData | undefined) => {
+                if (!old || !Array.isArray(old.spots)) return old;
+                const nextSpots = old.spots.map((p: any) => {
+                  if (!Array.isArray(p.subSpots)) return p;
+                  const nextSubs = p.subSpots.map((s: any) => {
+                    if (s.id !== chosen.id) return s;
+                    return {
+                      ...s,
+                      isBusyNow: isStart ? true : false,
+                      isMineNow: isStart ? true : false,
+                      myStartTime: isStart ? nowISO : null,
+                    };
+                  });
+                  return { ...p, subSpots: nextSubs };
+                });
+                return { ...old, spots: nextSpots };
+              });
+            };
+
+            if (action === 'start') applyLocal(true);
+            if (action === 'end') applyLocal(false);
             if (map && spotId) {
               const nextState = action === 'start' ? 'mine' : action === 'end' ? 'available' : (chosen.isMineNow ? 'mine' : (chosen.isBusyNow ? 'busy' : 'available'));
               map.setFeatureState?.({ source: SRC_ID, id: spotId } as any, { state: nextState });
