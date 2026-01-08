@@ -119,7 +119,20 @@ const parseRegionOrdinal = (region: { code?: string | null } | undefined): numbe
   return 1;
 };
 
-const formatParentLabel = (circle: string, order: number) => `スポット${circle}-${order}`;
+// Map 1 -> A, 2 -> B, ... 27 -> AA, etc.
+const letterForOrder = (order: number): string => {
+  if (order <= 0) return '?';
+  let n = order;
+  let out = '';
+  while (n > 0) {
+    n--; // 0-indexed for base-26 letters
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26);
+  }
+  return out;
+};
+
+const formatParentLabel = (order: number) => `スポット${letterForOrder(order)}`;
 
 // Remove a trailing "-<number>" suffix from labels like "A-1" -> "A"
 const stripTrailingDashNumber = (value: string | null | undefined): string => {
@@ -605,16 +618,16 @@ export default function Spots() {
 
   const filteredParents = useMemo(() => {
     return parents.map((p, parentIdx) => {
-      const parentLabel = formatParentLabel(regionCircle, parentIdx + 1);
-      const mappedSubSpots = p.subSpots.map((s, subIdx) => ({
-        ...s,
-        spotId: p.id,
-        displayLabel: `${parentLabel}・${subIdx + 1}台目`,
-        slotOrder: subIdx + 1,
-      }));
-      return {
-        ...p,
-        displayLabel: parentLabel,
+    const parentLabel = formatParentLabel(parentIdx + 1);
+    const mappedSubSpots = p.subSpots.map((s, subIdx) => ({
+      ...s,
+      spotId: p.id,
+      displayLabel: `- ${parentLabel} · ${subIdx + 1}台目`,
+      slotOrder: subIdx + 1,
+    }));
+    return {
+      ...p,
+      displayLabel: parentLabel,
         order: parentIdx + 1,
         subSpots: mappedSubSpots,
       };
@@ -1096,7 +1109,7 @@ export default function Spots() {
               <AccordionItem key={p.id} value={p.id} className="border rounded-xl px-2">
                 <AccordionTrigger className="py-2">
                   <div className="w-full flex items-center justify-between pr-2">
-                    <div className="text-base font-semibold">{p.displayLabel ?? formatParentLabel(regionCircle, (p.order ?? 0) || 1)}</div>
+                    <div className="text-base font-semibold">{p.displayLabel ?? formatParentLabel((p.order ?? 0) || 1)}</div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="font-mono">{availAll}/{totalAll}</Badge>
                       <Badge variant="outline" className="hidden xs:inline-flex">空き {availAll}</Badge>
