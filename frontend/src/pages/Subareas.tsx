@@ -120,7 +120,7 @@ export default function Subareas() {
 
   // Keep MapHighlight aligned with the *filtered* list
   const features = useMemo(() => {
-    const palette = ['#f43f5e', '#f59e0b', '#10b981', '#38bdf8', '#8b5cf6', '#ec4899'];
+    const palette = ['#38bdf8', '#f59e0b']; // alternate so adjacent differ
     return filtered
       .map((sa, i) => {
         const geom = (sa as any).geom ?? (sa as any).geometry;

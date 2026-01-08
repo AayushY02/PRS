@@ -1,0 +1,295 @@
+{
+  "type": "FeatureCollection",
+  "name": "numazu_centerlines",
+  "created_at": "2026-01-08T00:00:00Z",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "kukan-01",
+      "properties": {
+        "region_code": "kukan-01",
+        "name": "区間①",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8591016, 35.10112285],
+          [138.8591959, 35.10166247]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-02",
+      "properties": {
+        "region_code": "kukan-02",
+        "name": "区間②",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8589787, 35.10053387],
+          [138.8591016, 35.10112285]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-03",
+      "properties": {
+        "region_code": "kukan-03",
+        "name": "区間③",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8588745, 35.09990676],
+          [138.8589787, 35.10053387]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-04",
+      "properties": {
+        "region_code": "kukan-04",
+        "name": "区間④",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.858789, 35.09935271],
+          [138.8588745, 35.09990676]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-05",
+      "properties": {
+        "region_code": "kukan-05",
+        "name": "区間⑤",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8586848, 35.09883518],
+          [138.8587369, 35.09918223]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-06",
+      "properties": {
+        "region_code": "kukan-06",
+        "name": "区間⑥",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8585397, 35.09832374],
+          [138.8586848, 35.09883518]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-07",
+      "properties": {
+        "region_code": "kukan-07",
+        "name": "区間⑦",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8583908, 35.0979432],
+          [138.8584987, 35.09826894]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-08",
+      "properties": {
+        "region_code": "kukan-08",
+        "name": "区間⑧",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8581155, 35.09722779],
+          [138.8583908, 35.0979432]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-09",
+      "properties": {
+        "region_code": "kukan-09",
+        "name": "区間⑨",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8579704, 35.09686551],
+          [138.8581155, 35.09722779]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-10",
+      "properties": {
+        "region_code": "kukan-10",
+        "name": "区間⑩",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8577583, 35.09637232],
+          [138.8579704, 35.09686551]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-11",
+      "properties": {
+        "region_code": "kukan-11",
+        "name": "区間⑪",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8594258, 35.10167467],
+          [138.8592876, 35.10113967]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-12",
+      "properties": {
+        "region_code": "kukan-12",
+        "name": "区間⑫",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8592876, 35.10113967],
+          [138.8591759, 35.10051865]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-13",
+      "properties": {
+        "region_code": "kukan-13",
+        "name": "区間⑬",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8591759, 35.10051865],
+          [138.8590531, 35.09988241]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-14",
+      "properties": {
+        "region_code": "kukan-14",
+        "name": "区間⑭",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8590531, 35.09988241],
+          [138.8589452, 35.09932835]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-15",
+      "properties": {
+        "region_code": "kukan-15",
+        "name": "区間⑮",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8589266, 35.09916396],
+          [138.8586252, 35.09811064]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-16",
+      "properties": {
+        "region_code": "kukan-16",
+        "name": "区間⑯",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8586252, 35.09811064],
+          [138.8585434, 35.09788232]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-17",
+      "properties": {
+        "region_code": "kukan-17",
+        "name": "区間⑰",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8585434, 35.09788232],
+          [138.8583052, 35.09729172]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kukan-18",
+      "properties": {
+        "region_code": "kukan-18",
+        "name": "区間⑱",
+        "note": "Generated from provided CSV start/end coordinates"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [138.8583052, 35.09729172],
+          [138.8579369, 35.09633274]
+        ]
+      }
+    }
+  ]
+}

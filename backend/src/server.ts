@@ -11,6 +11,7 @@ import { authOptional } from './middleware/authOptional';
 import { liveStream } from './live.js';
 import usersRouter from './routes/users.routes.js';
 import statsRouter from './routes/stats.routes.js';
+import { subareasRouter } from './routes/subareas.routes.js';
 
 const app = express();
 app.set('trust proxy', 1)
@@ -28,6 +29,7 @@ app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
 app.use('/api/regions', regionsRouter);
 app.use('/api/admin/regions', adminRegionsRouter);
+app.use('/api/subareas', subareasRouter);
 app.use('/api/spots', spotsRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/users', usersRouter);

@@ -95,6 +95,7 @@ const SRC_ID = 'subspots-preview-src'; // for feature-state
 const DIR_SRC_ID = 'parking-direction-src';
 
 const COLOR_MINE = '#10b981';
+const COLOR_PALETTE = ['#38bdf8', '#f59e0b']; // alternate colors to reduce adjacent collisions
 const CIRCLED_DIGITS = [
   '\u2460', '\u2461', '\u2462', '\u2463', '\u2464',
   '\u2465', '\u2466', '\u2467', '\u2468', '\u2469',
@@ -229,7 +230,9 @@ function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
   const features: Feature<Polygon | MultiPolygon>[] = [];
   const stateById = new Map<string, SpotState>();
 
-  for (const spot of parents ?? []) {
+  for (let idx = 0; idx < (parents?.length ?? 0); idx++) {
+    const spot = parents[idx];
+    if (!spot) continue;
     const geom = sanitizeAnyPoly((spot as any)?.geom);
     if (!geom) continue;
 
@@ -241,7 +244,11 @@ function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
     const mineCount = subSpots.filter(s => s.isMineNow).length;
     const state = deriveSpotState(subSpots);
     stateById.set(spot.id, state);
-    const fallbackColor = state === 'mine' ? COLOR_MINE : state === 'busy' ? COLOR_BUSY : COLOR_AVAIL;
+    const fallbackColor = state === 'mine'
+      ? COLOR_MINE
+      : state === 'busy'
+        ? COLOR_BUSY
+        : COLOR_PALETTE[idx % COLOR_PALETTE.length];
 
     features.push({
       type: 'Feature',
@@ -810,8 +817,7 @@ export default function Spots() {
         'case',
         ['==', ['feature-state', 'state'], 'mine'], '#10b981',    // green
         ['==', ['feature-state', 'state'], 'busy'], '#9ca3af',    // gray
-        ['==', ['feature-state', 'state'], 'available'], '#38bdf8', // sky
-        ['coalesce', ['get', 'color'], '#38bdf8'],               // fallback
+        ['coalesce', ['get', 'color'], '#38bdf8'],               // available -> use per-spot color
       ];
 
       ensure(SLOTS_FILL, {
