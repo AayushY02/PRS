@@ -5,9 +5,9 @@
   "features": [
     {
       "type": "Feature",
-      "id": "kukan-01",
+      "id": "A",
       "properties": {
-        "region_code": "kukan-01",
+        "region_code": "A",
         "name": "区間①",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -21,9 +21,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-02",
+      "id": "B",
       "properties": {
-        "region_code": "kukan-02",
+        "region_code": "B",
         "name": "区間②",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -37,9 +37,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-03",
+      "id": "C",
       "properties": {
-        "region_code": "kukan-03",
+        "region_code": "C",
         "name": "区間③",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -53,9 +53,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-04",
+      "id": "D",
       "properties": {
-        "region_code": "kukan-04",
+        "region_code": "D",
         "name": "区間④",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -69,9 +69,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-05",
+      "id": "E",
       "properties": {
-        "region_code": "kukan-05",
+        "region_code": "E",
         "name": "区間⑤",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -85,9 +85,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-06",
+      "id": "F",
       "properties": {
-        "region_code": "kukan-06",
+        "region_code": "F",
         "name": "区間⑥",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -101,9 +101,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-07",
+      "id": "G",
       "properties": {
-        "region_code": "kukan-07",
+        "region_code": "G",
         "name": "区間⑦",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -117,9 +117,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-08",
+      "id": "H",
       "properties": {
-        "region_code": "kukan-08",
+        "region_code": "H",
         "name": "区間⑧",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -133,9 +133,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-09",
+      "id": "I",
       "properties": {
-        "region_code": "kukan-09",
+        "region_code": "I",
         "name": "区間⑨",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -149,9 +149,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-10",
+      "id": "J",
       "properties": {
-        "region_code": "kukan-10",
+        "region_code": "J",
         "name": "区間⑩",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -165,9 +165,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-11",
+      "id": "K",
       "properties": {
-        "region_code": "kukan-11",
+        "region_code": "K",
         "name": "区間⑪",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -181,9 +181,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-12",
+      "id": "L",
       "properties": {
-        "region_code": "kukan-12",
+        "region_code": "L",
         "name": "区間⑫",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -197,9 +197,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-13",
+      "id": "M",
       "properties": {
-        "region_code": "kukan-13",
+        "region_code": "M",
         "name": "区間⑬",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -213,9 +213,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-14",
+      "id": "N",
       "properties": {
-        "region_code": "kukan-14",
+        "region_code": "N",
         "name": "区間⑭",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -229,9 +229,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-15",
+      "id": "O",
       "properties": {
-        "region_code": "kukan-15",
+        "region_code": "O",
         "name": "区間⑮",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -245,9 +245,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-16",
+      "id": "P",
       "properties": {
-        "region_code": "kukan-16",
+        "region_code": "P",
         "name": "区間⑯",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -261,9 +261,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-17",
+      "id": "Q",
       "properties": {
-        "region_code": "kukan-17",
+        "region_code": "Q",
         "name": "区間⑰",
         "note": "Generated from provided CSV start/end coordinates"
       },
@@ -277,9 +277,9 @@
     },
     {
       "type": "Feature",
-      "id": "kukan-18",
+      "id": "R",
       "properties": {
-        "region_code": "kukan-18",
+        "region_code": "R",
         "name": "区間⑱",
         "note": "Generated from provided CSV start/end coordinates"
       },

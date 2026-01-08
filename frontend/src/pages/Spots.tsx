@@ -121,6 +121,14 @@ const parseRegionOrdinal = (region: { code?: string | null } | undefined): numbe
 
 const formatParentLabel = (circle: string, order: number) => `スポット${circle}-${order}`;
 
+// Remove a trailing "-<number>" suffix from labels like "A-1" -> "A"
+const stripTrailingDashNumber = (value: string | null | undefined): string => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  const cleaned = trimmed.replace(/\s*-\s*\d+$/, '');
+  return cleaned.length ? cleaned : trimmed;
+};
+
 const COLOR_BUSY = '#9ca3af';
 const COLOR_AVAIL = '#38bdf8';
 const COLOR_DIR = '#f97316'; // orange direction arrows
@@ -249,6 +257,8 @@ function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
       : state === 'busy'
         ? COLOR_BUSY
         : COLOR_PALETTE[idx % COLOR_PALETTE.length];
+    const rawLabel = spot.displayLabel ?? spot.code ?? '';
+    const cleanLabel = stripTrailingDashNumber(rawLabel);
 
     features.push({
       type: 'Feature',
@@ -258,7 +268,8 @@ function buildSpotFeatureCollection(parents: ParentSpotRow[]): {
         type: 'spot',
         spotId: spot.id,
         code: spot.code,
-        name: spot.displayLabel ?? spot.code,
+        name: rawLabel,
+        label: cleanLabel,
         // subareaId: spot.subareaId,
         total: subSpots.length,
         busy: busyCount,
@@ -859,14 +870,16 @@ export default function Spots() {
         layout: {
           'text-field': [
             'concat',
-            ['coalesce', ['get', 'name'], ['get', 'code']],
-            ' ',
+            ['coalesce', ['get', 'label'], ['get', 'name'], ['get', 'code']],
+            '\n',
             ['to-string', ['coalesce', ['get', 'busy'], 0]],
             '/',
             ['to-string', ['coalesce', ['get', 'total'], 0]],
           ],
           'text-size': 10,
           'text-allow-overlap': true,
+          'text-line-height': 1.2,
+          'text-anchor': 'center',
         },
         paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1 },
       });
