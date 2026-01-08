@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as turf from '@turf/turf';
-import type { Feature, FeatureCollection, LineString, Polygon, Position } from 'geojson';
+import type { Feature, FeatureCollection, LineString, MultiPolygon, Polygon, Position } from 'geojson';
 import { eq } from 'drizzle-orm';
 import { db, schema } from '../src/db';
 
@@ -38,8 +38,13 @@ function loadLines(): SubareaInput[] {
 }
 
 function bufferLine(ls: Feature<LineString>, widthMeters: number): Feature<Polygon> {
-  const buf = turf.buffer(ls, widthMeters, { units: 'meters' });
-  if (buf.geometry.type === 'Polygon') return buf as Feature<Polygon>;
+  const buf = turf.buffer(ls, widthMeters, { units: 'meters' }) as Feature<Polygon | MultiPolygon> | undefined;
+  if (buf?.geometry?.type === 'Polygon') return buf as Feature<Polygon>;
+  if (buf?.geometry?.type === 'MultiPolygon') {
+    // fallback to first polygon ring if buffer returns a multipolygon
+    const first = buf.geometry.coordinates[0];
+    if (first) return turf.polygon(first) as Feature<Polygon>;
+  }
   // fallback: make a thin rectangle around the line
   const coords = (ls.geometry.coordinates || []) as Position[];
   if (coords.length < 2) throw new Error('Line has <2 coords');
