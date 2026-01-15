@@ -59,6 +59,7 @@ export const spots = pgTable(
       .notNull()
       .references(() => subareas.id, { onDelete: 'cascade' }),
     code: text('code').notNull(),
+    displayCode: text('display_code'), // human-friendly (e.g., スポットA)
     description: text('description'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     geom: jsonb('geom').$type<GJ | null>().default(null),
@@ -74,6 +75,7 @@ export const subSpots = pgTable('sub_spots', {
   id: uuid('id').defaultRandom().primaryKey(),
   spotId: uuid('spot_id').notNull().references(() => spots.id, { onDelete: 'cascade' }),
   code: varchar('code', { length: 64 }).notNull(),         // e.g., S-12-A / “01-3”
+  displayCode: text('display_code'),                      // e.g., スポットA · 1台目
   idx: integer('idx').notNull(),                           // 1..N (order inside spot)
   geom: jsonb('geom').$type<GJ | null>().default(null),
 }, (t) => ({

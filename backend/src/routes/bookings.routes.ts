@@ -409,17 +409,24 @@ const toCircledNumber = (n: number): string => {
   return value ?? `(${n})`;
 };
 
-const parseRegionOrdinalFromCode = (code: string | null): number => {
-  if (!code) return 1;
-  const matches = code.match(/\d+/g);
-  if (matches && matches.length > 0) {
-    const last = matches[matches.length - 1];
-    if (typeof last === 'string' && last.length > 0) {
-      const parsed = parseInt(last, 10);
-      if (!Number.isNaN(parsed) && parsed > 0) return parsed;
-    }
+// Map 1 -> A, 2 -> B, ... 27 -> AA (aligns with frontend display)
+const letterForOrder = (order: number | null | undefined): string => {
+  if (!order || order <= 0) return '?';
+  let n = Math.floor(order);
+  let out = '';
+  while (n > 0) {
+    n -= 1;
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26);
   }
-  return 1;
+  return out;
+};
+
+// Prefer extracting the leading alpha chunk from spot_code (e.g., "J-1" -> "J")
+const letterFromSpotCode = (code: string | null | undefined): string | null => {
+  if (!code) return null;
+  const m = code.match(/^([A-Za-z]+)/);
+  return m?.[1]?.toUpperCase() ?? null;
 };
 
 const japaneseDirection = (d: string | null | undefined): string => {
@@ -428,19 +435,15 @@ const japaneseDirection = (d: string | null | undefined): string => {
   return '';
 };
 
-const formatSpotLabel = (regionCode: string | null, spotOrder: number | null): string => {
-  // Fall back to 1 when regionCode is missing to avoid empty circled digit
-  const regionOrdinal = parseRegionOrdinalFromCode(regionCode);
-  const circle = toCircledNumber(regionOrdinal);
-  const spotNumber = spotOrder && spotOrder > 0 ? spotOrder : 1;
-  return `スポット${circle}-${spotNumber}`;
+const formatSpotLabel = (spotCode: string | null, spotOrder: number | null): string => {
+  const letter = letterFromSpotCode(spotCode) ?? letterForOrder(spotOrder);
+  return `スポット${letter}`;
 };
 
-const formatSubSpotLabel = (regionCode: string | null, spotOrder: number | null, subspotOrder: number | null): string => {
-  const spotLabel = formatSpotLabel(regionCode, spotOrder);
+const formatSubSpotLabel = (spotCode: string | null, spotOrder: number | null, subspotOrder: number | null): string => {
+  const spotLabel = formatSpotLabel(spotCode, spotOrder);
   const order = subspotOrder && subspotOrder > 0 ? subspotOrder : 1;
-  // Legacy fallback (not used for CSV after we added code-based parsing)
-  return `${spotLabel}・${order}台目`;
+  return `${spotLabel} · ${order}台目`;
 };
 
 // Prefer parsing the sub_spots.code value (e.g., "kukan-01-S01-SS01")
@@ -453,13 +456,22 @@ function labelFromSubSpotCode(code?: string | null): string | null {
   const spotStr = m[2];
   const subStr = m[3];
   if (!regionStr || !spotStr || !subStr) return null;
-  const regionNum = parseInt(regionStr, 10);
   const spotNum = parseInt(spotStr, 10);
   const subNum = parseInt(subStr, 10);
-  if (!Number.isFinite(regionNum) || !Number.isFinite(spotNum) || !Number.isFinite(subNum)) return null;
-  const circle = toCircledNumber(Math.max(1, regionNum));
-  // Format with spaces around hyphens as requested
-  return `スポット${circle} - ${spotNum} - ${subNum}`;
+  if (!Number.isFinite(spotNum) || !Number.isFinite(subNum)) return null;
+  const letter = letterForOrder(spotNum);
+  return `スポット${letter} · ${subNum}台目`;
+}
+
+// Also accept simple codes like "K-2-3" (spot K, sub 3)
+function labelFromSimpleSubSpotCode(code?: string | null): string | null {
+  if (!code || typeof code !== 'string') return null;
+  const m = code.match(/^([A-Za-z]+)-\d+-([0-9]+)$/);
+  if (!m || !m[2]) return null;
+  const letter = m[1]?.toUpperCase();
+  const subNum = parseInt(m[2], 10);
+  if (!Number.isFinite(subNum)) return null;
+  return `スポット${letter} · ${subNum}台目`;
 }
 
 // const BOOKING_EXPORT_HEADERS = ['ID', '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', '\u958b\u59cb\u6642\u523b', '\u7d42\u4e86\u6642\u523b', '\u8eca\u7a2e', '\u30e1\u30e2'];
@@ -521,7 +533,10 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
     SELECT
       b.id,
       ss.code AS sub_spot_code,
+      ss.display_code AS sub_spot_display,
       s.code AS spot_code,
+      s.display_code AS spot_display,
+      ss.idx AS subspot_idx,
       LOWER(b.time_range) AS start_time,
       UPPER(b.time_range) AS end_time,
       b.vehicle_type,
@@ -545,7 +560,10 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
   return (result as any).rows as Array<{
     id: string;
     sub_spot_code: string;
+    sub_spot_display: string | null;
     spot_code: string | null;
+    spot_display: string | null;
+    subspot_idx: number | null;
     start_time: string | null;
     end_time: string | null;
     vehicle_type: string | null;
@@ -610,13 +628,22 @@ bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) 
   const bookings = await fetchBookingExportRows(scope, userId, spotId);
 
   const tableRows = bookings.map((row) => {
+    // If explicit display codes are present, trust them first
+    const explicitDisplay = row.sub_spot_display ?? null;
+    const explicitSpotDisplay = row.spot_display ?? null;
+
     // First try to build from sub_spots.code as requested
-    const fromCode = labelFromSubSpotCode(row.sub_spot_code);
+    const fromCode =
+      labelFromSubSpotCode(row.sub_spot_code) ??
+      labelFromSimpleSubSpotCode(row.sub_spot_code);
     // Fallback to derived label if code parsing fails
     const spotOrder = typeof row.spot_order === 'number' ? row.spot_order : Number(row.spot_order ?? 0);
-    const subspotOrder = typeof row.subspot_order === 'number' ? row.subspot_order : Number(row.subspot_order ?? 0);
-    const fallbackDisplay = formatSubSpotLabel(row.region_code ?? null, spotOrder, subspotOrder);
-    const subSpotDisplay = fromCode ?? fallbackDisplay;
+    const subspotOrderFromIdx = typeof row.subspot_idx === 'number' ? row.subspot_idx : Number(row.subspot_idx ?? 0);
+    const subspotOrder = subspotOrderFromIdx > 0
+      ? subspotOrderFromIdx
+      : (typeof row.subspot_order === 'number' ? row.subspot_order : Number(row.subspot_order ?? 0));
+    const fallbackDisplay = formatSubSpotLabel(row.spot_code ?? explicitSpotDisplay ?? null, spotOrder, subspotOrder);
+    const subSpotDisplay = explicitDisplay ?? fromCode ?? fallbackDisplay;
     return [
       row.id,
       subSpotDisplay,
