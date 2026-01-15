@@ -156,7 +156,7 @@ export default function App() {
               {/* Center: Brand */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full pointer-events-none select-none">
                 <h1 className="text-lg font-semibold text-slate-900 text-center">
-                  柏の葉路上駐車入力システム
+                  沼津路上駐車入力システム
                 </h1>
               </div>
             </div>
