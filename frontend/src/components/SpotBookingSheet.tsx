@@ -15,6 +15,7 @@ import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
 
 import { api } from '../lib/api';
 import {
@@ -45,10 +46,24 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type Vehicle = 'normal' | 'large' | 'other';
+type UseType = 'private' | 'commercial' | '';
 type ActiveBooking = {
   vehicleType: Vehicle;
   comment: string | null;
   direction: 'north' | 'south';
+  vehicleRegistrationLocation?: string | null;
+  classificationNumber?: string | null;
+  licensePlateInfo?: string | null;
+  useType?: UseType | null;
+};
+type BookingFormState = {
+  vehicleType: Vehicle;
+  direction: 'north' | 'south';
+  comment: string;
+  vehicleRegistrationLocation: string;
+  classificationNumber: string;
+  licensePlateInfo: string;
+  useType: UseType;
 };
 
 type Props = {
@@ -101,6 +116,94 @@ const NOTE_LIMIT = 140;
 // const QUICK_NOTES = ['Guest parking', 'Near elevator', 'Charging EV', 'Short stay'];
 const QUICK_NOTES = ['来客用駐車', 'エレベーター付近', 'EV充電中', '短時間利用'];
 
+const COMMENT_LABELS = {
+  registrationLocation: 'Vehicle Registration Location',
+  classificationNumber: 'Classification Number',
+  licensePlateInfo: 'License Plate Information',
+  useType: 'Use Type',
+  note: 'Notes',
+} as const;
+function parseLegacyStructuredComment(input: string) {
+  const blank = {
+    vehicleRegistrationLocation: '',
+    classificationNumber: '',
+    licensePlateInfo: '',
+    useType: '' as UseType,
+    note: '',
+  };
+
+  if (!input) return blank;
+
+  const lines = input.split(/\r?\n/);
+  const remaining: string[] = [];
+  let hasStructured = false;
+  let noteFromLabel = '';
+
+  const parseValue = (label: string, line: string) => {
+    const lower = line.toLowerCase();
+    const prefix = `${label.toLowerCase()}:`;
+    if (!lower.startsWith(prefix)) return null;
+    return line.slice(prefix.length).trim();
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const regValue = parseValue(COMMENT_LABELS.registrationLocation, trimmed);
+    if (regValue !== null) {
+      blank.vehicleRegistrationLocation = regValue;
+      hasStructured = true;
+      continue;
+    }
+
+    const classValue = parseValue(COMMENT_LABELS.classificationNumber, trimmed);
+    if (classValue !== null) {
+      blank.classificationNumber = classValue;
+      hasStructured = true;
+      continue;
+    }
+
+    const plateValue = parseValue(COMMENT_LABELS.licensePlateInfo, trimmed);
+    if (plateValue !== null) {
+      blank.licensePlateInfo = plateValue;
+      hasStructured = true;
+      continue;
+    }
+
+    const useValue = parseValue(COMMENT_LABELS.useType, trimmed);
+    if (useValue !== null) {
+      const useLower = useValue.toLowerCase();
+      if (useLower.startsWith('private')) blank.useType = 'private';
+      if (useLower.startsWith('commercial')) blank.useType = 'commercial';
+      hasStructured = true;
+      continue;
+    }
+
+    const noteValue = parseValue(COMMENT_LABELS.note, trimmed);
+    if (noteValue !== null) {
+      noteFromLabel = noteValue;
+      hasStructured = true;
+      continue;
+    }
+
+    remaining.push(trimmed);
+  }
+
+  if (hasStructured) {
+    const remainder = remaining.join('\n').trim();
+    if (noteFromLabel && remainder) {
+      blank.note = `${noteFromLabel}\n${remainder}`;
+    } else {
+      blank.note = noteFromLabel || remainder;
+    }
+  } else {
+    blank.note = input.trim();
+  }
+
+  return blank;
+}
+
 export default function SpotBookingSheet({
   open,
   onOpenChange,
@@ -119,6 +222,10 @@ export default function SpotBookingSheet({
   const [endDialogOpen, setEndDialogOpen] = useState(false);
 
   const [comment, setComment] = useState('');
+  const [vehicleRegistrationLocation, setVehicleRegistrationLocation] = useState('');
+  const [classificationNumber, setClassificationNumber] = useState('');
+  const [licensePlateInfo, setLicensePlateInfo] = useState('');
+  const [useType, setUseType] = useState<UseType>('');
   const [vehicle, setVehicle] = useState<Vehicle>('normal');
   const [submitting, setSubmitting] = useState<null | 'start' | 'end' | 'update'>(null);
   const [copied, setCopied] = useState(false);
@@ -136,10 +243,18 @@ export default function SpotBookingSheet({
   const endTimeDisplay = formatClockTime(currentMoment ?? null);
   const elapsedDisplay = elapsedDuration ?? '00:00:00';
   const [direction, setDirection] = useState<'north' | 'south'>('north');
-  const [initial, setInitial] = useState<ActiveBooking | null>(null); // for dirty check
+  const [initial, setInitial] = useState<BookingFormState | null>(null); // for dirty check
+  const normalizeOptional = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
 
   function resetFields() {
     setComment('');
+    setVehicleRegistrationLocation('');
+    setClassificationNumber('');
+    setLicensePlateInfo('');
+    setUseType('');
     setVehicle('normal');
     setSubmitting(null);
     setCopied(false);
@@ -163,13 +278,26 @@ export default function SpotBookingSheet({
         const r = await api.get('/api/bookings/active', { params: { subSpotId } });
         if (abort) return;
         const b = r.data as ActiveBooking;
+        const parsedComment = parseLegacyStructuredComment(b.comment ?? '');
+        const resolvedRegistration = b.vehicleRegistrationLocation ?? parsedComment.vehicleRegistrationLocation;
+        const resolvedClassification = b.classificationNumber ?? parsedComment.classificationNumber;
+        const resolvedPlate = b.licensePlateInfo ?? parsedComment.licensePlateInfo;
+        const resolvedUseType = b.useType ?? parsedComment.useType;
         setDirection(b.direction ?? 'north');
         setVehicle((b.vehicleType ?? 'normal') as Vehicle);
-        setComment(b.comment ?? '');
+        setComment(parsedComment.note);
+        setVehicleRegistrationLocation(resolvedRegistration ?? '');
+        setClassificationNumber(resolvedClassification ?? '');
+        setLicensePlateInfo(resolvedPlate ?? '');
+        setUseType(resolvedUseType ?? '');
         setInitial({
           direction: b.direction ?? 'north',
           vehicleType: (b.vehicleType ?? 'normal') as Vehicle,
-          comment: b.comment ?? '',
+          comment: parsedComment.note,
+          vehicleRegistrationLocation: resolvedRegistration ?? '',
+          classificationNumber: resolvedClassification ?? '',
+          licensePlateInfo: resolvedPlate ?? '',
+          useType: resolvedUseType ?? '',
         });
       } catch {
         // if fetch fails, keep whatever we had
@@ -198,6 +326,10 @@ export default function SpotBookingSheet({
     initial !== null &&
     (initial.direction !== direction ||
       initial.vehicleType !== vehicle ||
+      initial.vehicleRegistrationLocation !== vehicleRegistrationLocation ||
+      initial.classificationNumber !== classificationNumber ||
+      initial.licensePlateInfo !== licensePlateInfo ||
+      initial.useType !== useType ||
       (initial.comment ?? '') !== comment);
 
   async function startBooking() {
@@ -211,6 +343,10 @@ export default function SpotBookingSheet({
         subSpotId,
         vehicleType: vehicle,
         comment: comment.trim() || null,
+        vehicleRegistrationLocation: normalizeOptional(vehicleRegistrationLocation),
+        classificationNumber: normalizeOptional(classificationNumber),
+        licensePlateInfo: normalizeOptional(licensePlateInfo),
+        useType: useType || null,
         direction,
       });
       onSuccess('start');
@@ -233,12 +369,24 @@ export default function SpotBookingSheet({
         subSpotId,
         vehicleType: vehicle,
         comment: comment.trim() || null,
+        vehicleRegistrationLocation: normalizeOptional(vehicleRegistrationLocation),
+        classificationNumber: normalizeOptional(classificationNumber),
+        licensePlateInfo: normalizeOptional(licensePlateInfo),
+        useType: useType || null,
         direction,
       });
       // refresh counters/map
       onSuccess('update');
       // refresh "initial" to current so dirty becomes false
-      setInitial({ vehicleType: vehicle, comment, direction });
+      setInitial({
+        vehicleType: vehicle,
+        comment,
+        direction,
+        vehicleRegistrationLocation,
+        classificationNumber,
+        licensePlateInfo,
+        useType,
+      });
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Failed to update booking');
     } finally {
@@ -404,6 +552,66 @@ export default function SpotBookingSheet({
             </Select>
           </div>
 
+          {/* Vehicle registration details */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-registration-location">車籍地</Label>
+              <Input
+                id="vehicle-registration-location"
+                placeholder="例: 沼津"
+                value={vehicleRegistrationLocation}
+                onChange={(e) => setVehicleRegistrationLocation(e.target.value)}
+                className="rounded-xl h-10"
+                disabled={!myIsMaster && isBusyNow && !isMineNow}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="classification-number">分類番号</Label>
+              <Input
+                id="classification-number"
+                placeholder="例: 300"
+                value={classificationNumber}
+                onChange={(e) => setClassificationNumber(e.target.value)}
+                className="rounded-xl h-10"
+                disabled={!myIsMaster && isBusyNow && !isMineNow}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="license-plate-info">ナンバープレート</Label>
+              <Input
+                id="license-plate-info"
+                placeholder="例: 47-35"
+                value={licensePlateInfo}
+                onChange={(e) => setLicensePlateInfo(e.target.value)}
+                className="rounded-xl h-10"
+                disabled={!myIsMaster && isBusyNow && !isMineNow}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">自家用/営業用</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={useType === 'private' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setUseType('private')}
+                  disabled={!myIsMaster && isBusyNow && !isMineNow}
+                >
+                  自家用
+                </Button>
+                <Button
+                  type="button"
+                  variant={useType === 'commercial' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setUseType('commercial')}
+                  disabled={!myIsMaster && isBusyNow && !isMineNow}
+                >
+                  営業用
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Notes */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -431,35 +639,6 @@ export default function SpotBookingSheet({
 
             />
             <Progress value={charPct} className="h-1.5" />
-
-            <div className="space-y-2">
-              <Label className="text-sm">駐車方向 <Badge variant="secondary">必須</Badge></Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={direction === 'north' ? 'default' : 'outline'}
-                  className="rounded-full"
-                  onClick={() => setDirection('north')}
-                  disabled={!myIsMaster && isBusyNow && !isMineNow}
-
-                >
-                  北側方向
-                </Button>
-                <Button
-                  type="button"
-                  variant={direction === 'south' ? 'default' : 'outline'}
-                  className="rounded-full"
-                  onClick={() => setDirection('south')}
-                  disabled={!myIsMaster && isBusyNow && !isMineNow}
-
-                >
-                  南側方向
-                </Button>
-              </div>
-              {!direction && (
-                <p className="text-xs text-muted-foreground">開始前にいずれかを選択してください。</p>
-              )}
-            </div>
             {/* <div className="flex flex-wrap gap-2 pt-1">
               {QUICK_NOTES.map((q) => (
                 <Button

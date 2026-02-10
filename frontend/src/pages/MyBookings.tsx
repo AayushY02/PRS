@@ -29,6 +29,7 @@ import {
 } from '../components/ui/alert-dialog';
 
 type Vehicle = 'normal' | 'large' | 'other';
+type UseType = 'private' | 'commercial' | null;
 
 type RawBooking = {
   id: string;
@@ -37,6 +38,10 @@ type RawBooking = {
   time_range: string;
   comment: string | null;
   vehicle_type: Vehicle;
+  vehicle_registration_location?: string | null;
+  classification_number?: string | null;
+  license_plate_info?: string | null;
+  use_type?: UseType;
   status: 'active' | 'completed' | 'cancelled';
   created_at: string;
 };
@@ -74,6 +79,22 @@ function fmtDate(d: Date | null) {
 
 function vehicleLabel(v: Vehicle) {
   return v === 'normal' ? '普通自動車' : v === 'large' ? '大型自動車' : 'その他';
+}
+
+function useTypeLabel(value: UseType) {
+  if (value === 'private') return '自家用';
+  if (value === 'commercial') return '営業用';
+  return '';
+}
+
+function formatVehicleDetails(b: RawBooking) {
+  const details = [
+    b.vehicle_registration_location ? `車籍地: ${b.vehicle_registration_location}` : null,
+    b.classification_number ? `分類番号: ${b.classification_number}` : null,
+    b.license_plate_info ? `ナンバー: ${b.license_plate_info}` : null,
+    b.use_type ? `用途: ${useTypeLabel(b.use_type)}` : null,
+  ].filter(Boolean) as string[];
+  return details.join(' / ');
 }
 
 function computeDerived(b: RawBooking): ParsedBooking {
@@ -270,6 +291,7 @@ export default function MyBookings() {
               const pct = hasPlannedEnd
                 ? Math.min(100, Math.max(0, (b.durationSecNow / (b.totalPlannedSec as number)) * 100))
                 : null;
+              const vehicleDetails = formatVehicleDetails(b);
 
               return (
                 <Card key={b.id} className="rounded-2xl p-4 border bg-gradient-to-br from-emerald-500/10 to-emerald-500/0">
@@ -286,6 +308,11 @@ export default function MyBookings() {
                         <Car className="h-3.5 w-3.5" />
                         <span>{vehicleLabel(b.vehicle_type)}</span>
                       </div>
+                      {vehicleDetails && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {vehicleDetails}
+                        </div>
+                      )}
                     </div>
                     <Badge className="gap-1">
                       <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -348,20 +375,28 @@ export default function MyBookings() {
             <Badge variant="secondary">{upcoming.length}</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            {upcoming.map(b => (
-              <Card key={b.id} className="rounded-2xl p-4">
-                <div className="flex items-start justify-between">
-                  <div className="text-base font-semibold">サブスポット {b.sub_spot_code}</div>
-                  <Badge variant="outline">予定</Badge>
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">開始予定: {fmtDate(b.start)}</div>
-                <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                  <Car className="h-3.5 w-3.5" />
-                  {vehicleLabel(b.vehicle_type)}
-                </div>
-                {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
-              </Card>
-            ))}
+            {upcoming.map(b => {
+              const vehicleDetails = formatVehicleDetails(b);
+              return (
+                <Card key={b.id} className="rounded-2xl p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="text-base font-semibold">サブスポット {b.sub_spot_code}</div>
+                    <Badge variant="outline">予定</Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">開始予定: {fmtDate(b.start)}</div>
+                  <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    <Car className="h-3.5 w-3.5" />
+                    {vehicleLabel(b.vehicle_type)}
+                  </div>
+                  {vehicleDetails && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {vehicleDetails}
+                    </div>
+                  )}
+                  {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
+                </Card>
+              );
+            })}
           </div>
         </>
       )}
@@ -379,6 +414,7 @@ export default function MyBookings() {
               const totalSec =
                 b.end ? (b.end.getTime() - b.start.getTime()) / 1000 : b.durationSecNow;
               const isCancelled = b.derivedStatus === 'cancelled';
+              const vehicleDetails = formatVehicleDetails(b);
               return (
                 <Card
                   key={b.id}
@@ -403,6 +439,11 @@ export default function MyBookings() {
                     <Car className="h-3.5 w-3.5" />
                     {vehicleLabel(b.vehicle_type)}
                   </div>
+                  {vehicleDetails && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {vehicleDetails}
+                    </div>
+                  )}
                   {b.comment && <div className="mt-2 text-xs">📝 {b.comment}</div>}
                 </Card>
               );

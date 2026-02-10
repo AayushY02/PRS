@@ -162,6 +162,7 @@ const files = [
   '0001_schema.sql',
   '0002_constraints.sql',
   '0003_master_user.sql',
+  '0004_vehicle_details.sql',
 ];
 
 async function run() {

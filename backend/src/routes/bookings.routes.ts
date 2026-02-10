@@ -7,7 +7,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { sql as raw } from 'drizzle-orm';
 import { authRequired } from '../middleware/authRequired'; // keeps req.userId
 import { broadcastBooking } from '../live';
-import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseVehicleType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
+import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseUseType, japaneseVehicleType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
 
 export const bookingsRouter = Router();
 
@@ -21,6 +21,10 @@ const CreateBooking = z.object({
   endTime: z.string().datetime(),
   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
+  vehicleRegistrationLocation: z.string().max(200).optional().nullable(),
+  classificationNumber: z.string().max(200).optional().nullable(),
+  licensePlateInfo: z.string().max(200).optional().nullable(),
+  useType: z.enum(['private', 'commercial']).optional().nullable(),
   direction: z.enum(['north', 'south']),
 }).refine(v => new Date(v.endTime) > new Date(v.startTime), {
   message: 'End must be after start',
@@ -35,6 +39,10 @@ const UpdateBookingBody = z.object({
   subSpotId: z.string().uuid(),
   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
+  vehicleRegistrationLocation: z.string().max(200).optional().nullable(),
+  classificationNumber: z.string().max(200).optional().nullable(),
+  licensePlateInfo: z.string().max(200).optional().nullable(),
+  useType: z.enum(['private', 'commercial']).optional().nullable(),
   direction: z.enum(['north', 'south']).optional(),
 });
 
@@ -43,11 +51,34 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
   const parsed = CreateBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { subSpotId, startTime, endTime, comment, vehicleType, direction } = parsed.data;
+  const {
+    subSpotId,
+    startTime,
+    endTime,
+    comment,
+    vehicleType,
+    direction,
+    vehicleRegistrationLocation,
+    classificationNumber,
+    licensePlateInfo,
+    useType,
+  } = parsed.data;
 
   try {
     const r = await db.execute(raw`
-      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment ,vehicle_type, direction, status)
+      INSERT INTO bookings (
+        user_id,
+        sub_spot_id,
+        time_range,
+        comment,
+        vehicle_type,
+        direction,
+        vehicle_registration_location,
+        classification_number,
+        license_plate_info,
+        use_type,
+        status
+      )
       VALUES (
         ${userId}::uuid,
         ${subSpotId}::uuid,
@@ -55,6 +86,10 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
         ${comment ?? null},
         ${vehicleType ?? 'normal'},
          ${direction}::direction,
+        ${vehicleRegistrationLocation ?? null},
+        ${classificationNumber ?? null},
+        ${licensePlateInfo ?? null},
+        ${useType ?? null}::use_type,
         'active'
       )
       RETURNING id, (NOW() <@ time_range) AS active_now, lower(time_range) AS start_time
@@ -89,6 +124,10 @@ const StartBooking = z.object({
   subSpotId: z.string().uuid(),
   vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
+  vehicleRegistrationLocation: z.string().max(200).optional().nullable(),
+  classificationNumber: z.string().max(200).optional().nullable(),
+  licensePlateInfo: z.string().max(200).optional().nullable(),
+  useType: z.enum(['private', 'commercial']).optional().nullable(),
   direction: z.enum(['north', 'south']),
 
 });
@@ -110,6 +149,10 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
             comment,
             vehicle_type,
             direction,
+            vehicle_registration_location,
+            classification_number,
+            license_plate_info,
+            use_type,
             lower(time_range) AS start_time
           FROM bookings
           WHERE sub_spot_id = ${subSpotId}::uuid
@@ -125,6 +168,10 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
             comment,
             vehicle_type,
             direction,
+            vehicle_registration_location,
+            classification_number,
+            license_plate_info,
+            use_type,
             lower(time_range) AS start_time
           FROM bookings
           WHERE user_id = ${userId}::uuid
@@ -145,6 +192,10 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
       vehicleType: row.vehicle_type,
       comment: row.comment,
       direction: row.direction,
+      vehicleRegistrationLocation: row.vehicle_registration_location,
+      classificationNumber: row.classification_number,
+      licensePlateInfo: row.license_plate_info,
+      useType: row.use_type,
       startTime: row.start_time,
     });
   } catch (e: any) {
@@ -160,9 +211,26 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
   const parsed = UpdateBookingBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { subSpotId, vehicleType, comment, direction } = parsed.data;
+  const {
+    subSpotId,
+    vehicleType,
+    comment,
+    direction,
+    vehicleRegistrationLocation,
+    classificationNumber,
+    licensePlateInfo,
+    useType,
+  } = parsed.data;
 
-  if (vehicleType === undefined && comment === undefined && direction === undefined) {
+  if (
+    vehicleType === undefined &&
+    comment === undefined &&
+    direction === undefined &&
+    vehicleRegistrationLocation === undefined &&
+    classificationNumber === undefined &&
+    licensePlateInfo === undefined &&
+    useType === undefined
+  ) {
     return res.status(400).json({ error: 'No fields to update' });
   }
 
@@ -170,6 +238,18 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
     const sets: any[] = [];
     if (vehicleType !== undefined) sets.push(sql`vehicle_type = ${vehicleType}`);
     if (comment !== undefined) sets.push(sql`comment = ${comment ?? null}`);
+    if (vehicleRegistrationLocation !== undefined) {
+      sets.push(sql`vehicle_registration_location = ${vehicleRegistrationLocation ?? null}`);
+    }
+    if (classificationNumber !== undefined) {
+      sets.push(sql`classification_number = ${classificationNumber ?? null}`);
+    }
+    if (licensePlateInfo !== undefined) {
+      sets.push(sql`license_plate_info = ${licensePlateInfo ?? null}`);
+    }
+    if (useType !== undefined) {
+      sets.push(sql`use_type = ${useType ?? null}::use_type`);
+    }
     if (direction !== undefined) sets.push(sql`direction = ${direction}::direction`);
     sets.push(sql`updated_at = NOW()`);
 
@@ -180,7 +260,7 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
           WHERE sub_spot_id = ${subSpotId}::uuid
             AND status = 'active'
             AND NOW() <@ time_range
-          RETURNING id, sub_spot_id, vehicle_type, comment, direction
+          RETURNING id, sub_spot_id, vehicle_type, comment, direction, vehicle_registration_location, classification_number, license_plate_info, use_type
         `)
       : await db.execute(sql`
           UPDATE bookings
@@ -189,7 +269,7 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
             AND sub_spot_id = ${subSpotId}::uuid
             AND status = 'active'
             AND NOW() <@ time_range
-          RETURNING id, sub_spot_id, vehicle_type, comment, direction
+          RETURNING id, sub_spot_id, vehicle_type, comment, direction, vehicle_registration_location, classification_number, license_plate_info, use_type
         `);
 
     const row = (r as any)?.rows?.[0];
@@ -202,6 +282,10 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
       vehicleType: row.vehicle_type,
       comment: row.comment,
       direction: row.direction,
+      vehicleRegistrationLocation: row.vehicle_registration_location,
+      classificationNumber: row.classification_number,
+      licensePlateInfo: row.license_plate_info,
+      useType: row.use_type,
     });
   } catch (e: any) {
     console.error(e);
@@ -217,7 +301,16 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
   const parsed = StartBooking.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { subSpotId, comment, vehicleType, direction } = parsed.data;
+  const {
+    subSpotId,
+    comment,
+    vehicleType,
+    direction,
+    vehicleRegistrationLocation,
+    classificationNumber,
+    licensePlateInfo,
+    useType,
+  } = parsed.data;
 
   try {
     // Master can override: end any current active booking on this sub-spot before inserting a new one
@@ -234,7 +327,19 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
       } catch { /* ignore; best-effort */ }
     }
     const r = await db.execute(raw`
-      INSERT INTO bookings (user_id, sub_spot_id, time_range, comment, vehicle_type, direction, status)
+      INSERT INTO bookings (
+        user_id,
+        sub_spot_id,
+        time_range,
+        comment,
+        vehicle_type,
+        direction,
+        vehicle_registration_location,
+        classification_number,
+        license_plate_info,
+        use_type,
+        status
+      )
       VALUES (
         ${userId}::uuid,
         ${subSpotId}::uuid,
@@ -242,6 +347,10 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
         ${comment ?? null},
         ${vehicleType ?? 'normal'},
         ${direction}::direction,
+        ${vehicleRegistrationLocation ?? null},
+        ${classificationNumber ?? null},
+        ${licensePlateInfo ?? null},
+        ${useType ?? null}::use_type,
         'active'
       )
       RETURNING id, lower(time_range) AS start_time
@@ -333,6 +442,10 @@ bookingsRouter.get('/mine', authRequired, async (req: Request, res: Response) =>
         b.time_range,
         b.comment,
         b.vehicle_type,
+        b.vehicle_registration_location,
+        b.classification_number,
+        b.license_plate_info,
+        b.use_type,
         b.status,
         b.created_at
       FROM bookings b
@@ -482,6 +595,10 @@ const BOOKING_EXPORT_HEADERS = [
   '\u7d42\u4e86\u6642\u523b',             // 終了時刻
   '\u8eca\u7a2e',                         // 車種
   '\u99d0\u8eca\u65b9\u5411',             // 駐車方向  ← NEW
+  '\u8eca\u7c4d\u5730',                   // 車籍地
+  '\u5206\u985e\u756a\u53f7',             // 分類番号
+  '\u30ca\u30f3\u30d0\u30fc\u30d7\u30ec\u30fc\u30c8', // ナンバープレート
+  '\u81ea\u5bb6\u7528/\u55b6\u696d\u7528', // 自家用/営業用
   '\u30e1\u30e2',                         // メモ
 ];
 
@@ -540,7 +657,11 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
       LOWER(b.time_range) AS start_time,
       UPPER(b.time_range) AS end_time,
       b.vehicle_type,
-      b.direction,   
+      b.direction,
+      b.vehicle_registration_location,
+      b.classification_number,
+      b.license_plate_info,
+      b.use_type,
       COALESCE(b.comment, '') AS memo,
       u.email AS user_email,
       r.code AS region_code,
@@ -568,6 +689,10 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
     end_time: string | null;
     vehicle_type: string | null;
     direction: 'north' | 'south';
+    vehicle_registration_location: string | null;
+    classification_number: string | null;
+    license_plate_info: string | null;
+    use_type: 'private' | 'commercial' | null;
     memo: string | null;
     user_email: string | null;
     region_code: string | null;
@@ -651,6 +776,10 @@ bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) 
       formatBookingEnd(row.end_time),
       japaneseVehicleType(row.vehicle_type),
       japaneseDirection(row.direction),
+      row.vehicle_registration_location ?? '',
+      row.classification_number ?? '',
+      row.license_plate_info ?? '',
+      japaneseUseType(row.use_type),
       row.memo ?? '',
 
     ];

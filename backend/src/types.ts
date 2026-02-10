@@ -9,5 +9,9 @@ export type BookingDTO = {
   user_id: string;
   time_range: string;   // tstzrange literal
   comment: string | null;
+  vehicle_registration_location?: string | null;
+  classification_number?: string | null;
+  license_plate_info?: string | null;
+  use_type?: 'private' | 'commercial' | null;
   status: 'active' | 'cancelled';
 };

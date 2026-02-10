@@ -82,6 +82,17 @@ export function japaneseVehicleType(type: string | null | undefined): string {
   }
 }
 
+export function japaneseUseType(type: string | null | undefined): string {
+  switch (type) {
+    case 'private':
+      return '\u81ea\u5bb6\u7528';
+    case 'commercial':
+      return '\u55b6\u696d\u7528';
+    default:
+      return '';
+  }
+}
+
 export function sanitizeForFilename(value: string): string {
   return value.replace(/[\\/:*?"<>|]/g, '_');
 }

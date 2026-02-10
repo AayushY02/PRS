@@ -3,6 +3,7 @@ import { pgTable, text, timestamp, uuid, index, uniqueIndex, pgEnum, varchar, in
 import { relations, sql } from 'drizzle-orm';
 type GJ = any;
 export const directionEnum = pgEnum('direction', ['north', 'south']);
+export const useTypeEnum = pgEnum('use_type', ['private', 'commercial']);
 
 // We keep tstzrange as a raw SQL data type. We'll use raw SQL in queries when needed.
 const tstzrange = customType<{ data: string; driverData: string }>({
@@ -100,6 +101,10 @@ export const bookings = pgTable('bookings', {
 
   // NEW:
   vehicleType: vehicleTypeEnum('vehicle_type').notNull().default('normal'),
+  vehicleRegistrationLocation: text('vehicle_registration_location'),
+  classificationNumber: text('classification_number'),
+  licensePlateInfo: text('license_plate_info'),
+  useType: useTypeEnum('use_type'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
