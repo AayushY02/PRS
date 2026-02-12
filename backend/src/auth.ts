@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions, type Secret } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
@@ -39,7 +39,8 @@ export async function verifyUser(email: string, password: string) {
 }
 
 export function signJWT(userId: string) {
-  return jwt.sign({ sub: userId }, ENV.JWT_SECRET, { expiresIn: ENV.ACCESS_TOKEN_TTL });
+  const expiresIn = ENV.ACCESS_TOKEN_TTL as Exclude<SignOptions['expiresIn'], undefined>;
+  return jwt.sign({ sub: userId }, ENV.JWT_SECRET as Secret, { expiresIn });
 }
 
 export function verifyJWT(token: string) {
