@@ -70,18 +70,6 @@ export async function toXlsxBuffer(sheetName: string, headers: string[], rows: T
   return Buffer.from(buffer);
 }
 
-export function japaneseVehicleType(type: string | null | undefined): string {
-  switch (type) {
-    case 'large':
-      return '\u5927\u578b\u8eca';
-    case 'other':
-      return '\u305d\u306e\u4ed6';
-    case 'normal':
-    default:
-      return '\u666e\u901a\u8eca';
-  }
-}
-
 export function japaneseUseType(type: string | null | undefined): string {
   switch (type) {
     case 'private':

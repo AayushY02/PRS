@@ -7,19 +7,18 @@ import { and, eq, sql } from 'drizzle-orm';
 import { sql as raw } from 'drizzle-orm';
 import { authRequired } from '../middleware/authRequired'; // keeps req.userId
 import { broadcastBooking } from '../live';
-import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseUseType, japaneseVehicleType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
+import { currentTokyoTimestamp, formatBookingEnd, formatDateTimeISO, japaneseUseType, sanitizeForFilename, toCsvBuffer, toXlsxBuffer } from '../utils/exporters';
 
 export const bookingsRouter = Router();
 
 /**
  * Create a fixed booking (start/end). Kept for 窶徇anual窶・reservations if you still need it.
- * Uses sub-spot and (optionally) vehicleType.
+ * Uses sub-spot.
  */
 const CreateBooking = z.object({
   subSpotId: z.string().uuid(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
-  vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
   vehicleRegistrationLocation: z.string().max(200).optional().nullable(),
   classificationNumber: z.string().max(200).optional().nullable(),
@@ -37,7 +36,6 @@ const ActiveBookingQuery = z.object({
 // Update the caller's active booking (body)
 const UpdateBookingBody = z.object({
   subSpotId: z.string().uuid(),
-  vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
   vehicleRegistrationLocation: z.string().max(200).optional().nullable(),
   classificationNumber: z.string().max(200).optional().nullable(),
@@ -56,7 +54,6 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
     startTime,
     endTime,
     comment,
-    vehicleType,
     direction,
     vehicleRegistrationLocation,
     classificationNumber,
@@ -71,7 +68,6 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
         sub_spot_id,
         time_range,
         comment,
-        vehicle_type,
         direction,
         vehicle_registration_location,
         classification_number,
@@ -84,8 +80,7 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
         ${subSpotId}::uuid,
         tstzrange(${startTime}::timestamptz, ${endTime}::timestamptz, '[)'),
         ${comment ?? null},
-        ${vehicleType ?? 'normal'},
-         ${direction}::direction,
+        ${direction}::direction,
         ${vehicleRegistrationLocation ?? null},
         ${classificationNumber ?? null},
         ${licensePlateInfo ?? null},
@@ -118,11 +113,9 @@ bookingsRouter.post('/', authRequired, async (req: Request, res: Response) => {
 
 /**
  * START an open-ended booking now (meter starts running).
- * Accepts vehicleType (譎ｮ騾・螟ｧ蝙・縺昴・莉・.
  */
 const StartBooking = z.object({
   subSpotId: z.string().uuid(),
-  vehicleType: z.enum(['normal', 'large', 'other']).optional(),
   comment: z.string().max(1000).optional().nullable(),
   vehicleRegistrationLocation: z.string().max(200).optional().nullable(),
   classificationNumber: z.string().max(200).optional().nullable(),
@@ -147,7 +140,6 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
             id,
             sub_spot_id,
             comment,
-            vehicle_type,
             direction,
             vehicle_registration_location,
             classification_number,
@@ -166,7 +158,6 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
             id,
             sub_spot_id,
             comment,
-            vehicle_type,
             direction,
             vehicle_registration_location,
             classification_number,
@@ -189,7 +180,6 @@ bookingsRouter.get('/active', authRequired, async (req: Request, res: Response) 
     res.json({
       id: row.id,
       subSpotId: row.sub_spot_id,
-      vehicleType: row.vehicle_type,
       comment: row.comment,
       direction: row.direction,
       vehicleRegistrationLocation: row.vehicle_registration_location,
@@ -213,7 +203,6 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
 
   const {
     subSpotId,
-    vehicleType,
     comment,
     direction,
     vehicleRegistrationLocation,
@@ -223,7 +212,6 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
   } = parsed.data;
 
   if (
-    vehicleType === undefined &&
     comment === undefined &&
     direction === undefined &&
     vehicleRegistrationLocation === undefined &&
@@ -236,7 +224,6 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
 
   try {
     const sets: any[] = [];
-    if (vehicleType !== undefined) sets.push(sql`vehicle_type = ${vehicleType}`);
     if (comment !== undefined) sets.push(sql`comment = ${comment ?? null}`);
     if (vehicleRegistrationLocation !== undefined) {
       sets.push(sql`vehicle_registration_location = ${vehicleRegistrationLocation ?? null}`);
@@ -260,7 +247,7 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
           WHERE sub_spot_id = ${subSpotId}::uuid
             AND status = 'active'
             AND NOW() <@ time_range
-          RETURNING id, sub_spot_id, vehicle_type, comment, direction, vehicle_registration_location, classification_number, license_plate_info, use_type
+          RETURNING id, sub_spot_id, comment, direction, vehicle_registration_location, classification_number, license_plate_info, use_type
         `)
       : await db.execute(sql`
           UPDATE bookings
@@ -269,7 +256,7 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
             AND sub_spot_id = ${subSpotId}::uuid
             AND status = 'active'
             AND NOW() <@ time_range
-          RETURNING id, sub_spot_id, vehicle_type, comment, direction, vehicle_registration_location, classification_number, license_plate_info, use_type
+          RETURNING id, sub_spot_id, comment, direction, vehicle_registration_location, classification_number, license_plate_info, use_type
         `);
 
     const row = (r as any)?.rows?.[0];
@@ -279,7 +266,6 @@ bookingsRouter.post('/update', authRequired, async (req: Request, res: Response)
       ok: true,
       id: row.id,
       subSpotId: row.sub_spot_id,
-      vehicleType: row.vehicle_type,
       comment: row.comment,
       direction: row.direction,
       vehicleRegistrationLocation: row.vehicle_registration_location,
@@ -304,7 +290,6 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
   const {
     subSpotId,
     comment,
-    vehicleType,
     direction,
     vehicleRegistrationLocation,
     classificationNumber,
@@ -332,7 +317,6 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
         sub_spot_id,
         time_range,
         comment,
-        vehicle_type,
         direction,
         vehicle_registration_location,
         classification_number,
@@ -345,7 +329,6 @@ bookingsRouter.post('/start', authRequired, async (req: Request, res: Response) 
         ${subSpotId}::uuid,
         tstzrange(NOW(), NULL, '[)'),
         ${comment ?? null},
-        ${vehicleType ?? 'normal'},
         ${direction}::direction,
         ${vehicleRegistrationLocation ?? null},
         ${classificationNumber ?? null},
@@ -441,7 +424,6 @@ bookingsRouter.get('/mine', authRequired, async (req: Request, res: Response) =>
         ss.code AS sub_spot_code,
         b.time_range,
         b.comment,
-        b.vehicle_type,
         b.vehicle_registration_location,
         b.classification_number,
         b.license_plate_info,
@@ -593,7 +575,6 @@ const BOOKING_EXPORT_HEADERS = [
   '\u30b9\u30dd\u30c3\u30c8\u756a\u53f7', // スポット番号
   '\u958b\u59cb\u6642\u523b',             // 開始時刻
   '\u7d42\u4e86\u6642\u523b',             // 終了時刻
-  '\u8eca\u7a2e',                         // 車種
   '\u99d0\u8eca\u65b9\u5411',             // 駐車方向  ← NEW
   '\u8eca\u7c4d\u5730',                   // 車籍地
   '\u5206\u985e\u756a\u53f7',             // 分類番号
@@ -656,7 +637,6 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
       ss.idx AS subspot_idx,
       LOWER(b.time_range) AS start_time,
       UPPER(b.time_range) AS end_time,
-      b.vehicle_type,
       b.direction,
       b.vehicle_registration_location,
       b.classification_number,
@@ -687,7 +667,6 @@ async function fetchBookingExportRows(scope: BookingExportScope, userId?: string
     subspot_idx: number | null;
     start_time: string | null;
     end_time: string | null;
-    vehicle_type: string | null;
     direction: 'north' | 'south';
     vehicle_registration_location: string | null;
     classification_number: string | null;
@@ -774,7 +753,6 @@ bookingsRouter.get('/export', authRequired, async (req: Request, res: Response) 
       subSpotDisplay,
       formatDateTimeISO(row.start_time, ''),
       formatBookingEnd(row.end_time),
-      japaneseVehicleType(row.vehicle_type),
       japaneseDirection(row.direction),
       row.vehicle_registration_location ?? '',
       row.classification_number ?? '',

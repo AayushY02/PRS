@@ -11,9 +11,6 @@ const tstzrange = customType<{ data: string; driverData: string }>({
     return 'tstzrange';
   },
 });
-export const vehicleTypeEnum = pgEnum('vehicle_type', ['normal', 'large', 'other']);
-
-
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   email: text('email').notNull().unique(),
@@ -100,7 +97,6 @@ export const bookings = pgTable('bookings', {
   comment: text('comment'),
 
   // NEW:
-  vehicleType: vehicleTypeEnum('vehicle_type').notNull().default('normal'),
   vehicleRegistrationLocation: text('vehicle_registration_location'),
   classificationNumber: text('classification_number'),
   licensePlateInfo: text('license_plate_info'),

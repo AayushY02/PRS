@@ -29,7 +29,6 @@ import {
   Loader2,
   Dot,
 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Progress } from './ui/progress';
 import { Alert, AlertDescription } from './ui/alert';
 import {
@@ -45,10 +44,8 @@ import {
 } from './ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
-type Vehicle = 'normal' | 'large' | 'other';
 type UseType = 'private' | 'commercial' | '';
 type ActiveBooking = {
-  vehicleType: Vehicle;
   comment: string | null;
   direction: 'north' | 'south';
   vehicleRegistrationLocation?: string | null;
@@ -57,7 +54,6 @@ type ActiveBooking = {
   useType?: UseType | null;
 };
 type BookingFormState = {
-  vehicleType: Vehicle;
   direction: 'north' | 'south';
   comment: string;
   vehicleRegistrationLocation: string;
@@ -226,7 +222,6 @@ export default function SpotBookingSheet({
   const [classificationNumber, setClassificationNumber] = useState('');
   const [licensePlateInfo, setLicensePlateInfo] = useState('');
   const [useType, setUseType] = useState<UseType>('');
-  const [vehicle, setVehicle] = useState<Vehicle>('normal');
   const [submitting, setSubmitting] = useState<null | 'start' | 'end' | 'update'>(null);
   const [copied, setCopied] = useState(false);
 
@@ -255,7 +250,6 @@ export default function SpotBookingSheet({
     setClassificationNumber('');
     setLicensePlateInfo('');
     setUseType('');
-    setVehicle('normal');
     setSubmitting(null);
     setCopied(false);
     setError(null);
@@ -284,7 +278,6 @@ export default function SpotBookingSheet({
         const resolvedPlate = b.licensePlateInfo ?? parsedComment.licensePlateInfo;
         const resolvedUseType = b.useType ?? parsedComment.useType;
         setDirection(b.direction ?? 'north');
-        setVehicle((b.vehicleType ?? 'normal') as Vehicle);
         setComment(parsedComment.note);
         setVehicleRegistrationLocation(resolvedRegistration ?? '');
         setClassificationNumber(resolvedClassification ?? '');
@@ -292,7 +285,6 @@ export default function SpotBookingSheet({
         setUseType(resolvedUseType ?? '');
         setInitial({
           direction: b.direction ?? 'north',
-          vehicleType: (b.vehicleType ?? 'normal') as Vehicle,
           comment: parsedComment.note,
           vehicleRegistrationLocation: resolvedRegistration ?? '',
           classificationNumber: resolvedClassification ?? '',
@@ -325,7 +317,6 @@ export default function SpotBookingSheet({
   const dirty =
     initial !== null &&
     (initial.direction !== direction ||
-      initial.vehicleType !== vehicle ||
       initial.vehicleRegistrationLocation !== vehicleRegistrationLocation ||
       initial.classificationNumber !== classificationNumber ||
       initial.licensePlateInfo !== licensePlateInfo ||
@@ -341,7 +332,6 @@ export default function SpotBookingSheet({
       setOptimisticStartAt(nowISO);
       await api.post('/api/bookings/start', {
         subSpotId,
-        vehicleType: vehicle,
         comment: comment.trim() || null,
         vehicleRegistrationLocation: normalizeOptional(vehicleRegistrationLocation),
         classificationNumber: normalizeOptional(classificationNumber),
@@ -367,7 +357,6 @@ export default function SpotBookingSheet({
     try {
       await api.post('/api/bookings/update', {
         subSpotId,
-        vehicleType: vehicle,
         comment: comment.trim() || null,
         vehicleRegistrationLocation: normalizeOptional(vehicleRegistrationLocation),
         classificationNumber: normalizeOptional(classificationNumber),
@@ -379,7 +368,6 @@ export default function SpotBookingSheet({
       onSuccess('update');
       // refresh "initial" to current so dirty becomes false
       setInitial({
-        vehicleType: vehicle,
         comment,
         direction,
         vehicleRegistrationLocation,
@@ -532,25 +520,6 @@ export default function SpotBookingSheet({
               予約を終了すると、他の人がすぐにこのスポットを利用できます。メモはあなただけが見られます。
             </AlertDescription>
           </Alert>
-
-          {/* Vehicle select */}
-          <div className="space-y-2">
-            <Label htmlFor="vehicle">車種を選択</Label>
-            <Select
-              value={vehicle}
-              onValueChange={(v) => setVehicle(v as Vehicle)}
-              disabled={!myIsMaster && isBusyNow && !isMineNow}
-            >
-              <SelectTrigger id="vehicle" className="w-full rounded-xl h-10">
-                <SelectValue placeholder="車種を選んでください…" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="normal">普通車</SelectItem>
-                <SelectItem value="large">大型車</SelectItem>
-                <SelectItem value="other">その他</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Vehicle registration details */}
           <div className="space-y-4">

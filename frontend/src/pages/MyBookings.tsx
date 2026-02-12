@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   XCircle,
   History as HistoryIcon,
-  Car,
 } from 'lucide-react';
 
 // NEW: shadcn alert dialog
@@ -28,7 +27,6 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 
-type Vehicle = 'normal' | 'large' | 'other';
 type UseType = 'private' | 'commercial' | null;
 
 type RawBooking = {
@@ -37,7 +35,6 @@ type RawBooking = {
   sub_spot_code: string;
   time_range: string;
   comment: string | null;
-  vehicle_type: Vehicle;
   vehicle_registration_location?: string | null;
   classification_number?: string | null;
   license_plate_info?: string | null;
@@ -77,9 +74,6 @@ function fmtDate(d: Date | null) {
   return d.toLocaleString();
 }
 
-function vehicleLabel(v: Vehicle) {
-  return v === 'normal' ? '普通自動車' : v === 'large' ? '大型自動車' : 'その他';
-}
 
 function useTypeLabel(value: UseType) {
   if (value === 'private') return '自家用';
@@ -304,10 +298,6 @@ export default function MyBookings() {
                         <Clock className="h-3.5 w-3.5" />
                         <span>開始: {fmtDate(b.start)}</span>
                       </div>
-                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Car className="h-3.5 w-3.5" />
-                        <span>{vehicleLabel(b.vehicle_type)}</span>
-                      </div>
                       {vehicleDetails && (
                         <div className="mt-1 text-xs text-muted-foreground">
                           {vehicleDetails}
@@ -384,10 +374,6 @@ export default function MyBookings() {
                     <Badge variant="outline">予定</Badge>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">開始予定: {fmtDate(b.start)}</div>
-                  <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                    <Car className="h-3.5 w-3.5" />
-                    {vehicleLabel(b.vehicle_type)}
-                  </div>
                   {vehicleDetails && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {vehicleDetails}
@@ -434,10 +420,6 @@ export default function MyBookings() {
                   <div className="text-xs text-muted-foreground">終了: {fmtDate(b.end)}</div>
                   <div className="mt-2 text-xs">
                     ⏱️ 利用時間: <span className="font-mono">{hhmmss(totalSec)}</span>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                    <Car className="h-3.5 w-3.5" />
-                    {vehicleLabel(b.vehicle_type)}
                   </div>
                   {vehicleDetails && (
                     <div className="mt-1 text-xs text-muted-foreground">

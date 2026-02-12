@@ -131,7 +131,7 @@ export default function Exports() {
         <div className="space-y-2">
           <h2 className="text-base font-semibold">予約データ</h2>
           <p className="text-xs text-muted-foreground">
-            生成されるファイルには「ID / スポット番号 / 開始時刻 / 終了時刻 / 車種 / 駐車方向 / 車籍地 / 分類番号 / ナンバープレート / 自家用/営業用 / メモ」の11列が含まれます。
+            生成されるファイルには「ID / スポット番号 / 開始時刻 / 終了時刻 / 駐車方向 / 車籍地 / 分類番号 / ナンバープレート / 自家用/営業用 / メモ」の10列が含まれます。
           </p>
         </div>
 
