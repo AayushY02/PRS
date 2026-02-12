@@ -2,7 +2,7 @@
 
 
 import { Router, type Request, type Response } from 'express';
-import { AuthPayload, createRefreshToken, revokeRefreshToken, rotateRefreshToken, signJWT, verifyJWT, verifyUser } from '../auth';
+import { AuthPayload, createRefreshToken, createUser, revokeRefreshToken, rotateRefreshToken, signJWT, verifyJWT, verifyUser } from '../auth';
 import { ENV } from '../env';
 import { db, schema } from '../db'; // << add this
 import { eq } from 'drizzle-orm';   // << add this
