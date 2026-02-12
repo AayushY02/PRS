@@ -6,8 +6,11 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().url().min(1, 'DATABASE_URL is required'),
   JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
   COOKIE_NAME: z.string().default('auth_token'),
+  REFRESH_COOKIE_NAME: z.string().default('refresh_token'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(parseInt(process.env.PORT || '8080', 10)),
+  ACCESS_TOKEN_TTL: z.string().default('2h'),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   // Accept comma-separated list: "http://localhost:5173,https://my-frontend.onrender.com"
   CORS_ORIGIN: z.string().default("http://localhost:5173, https://prs-pied.vercel.app"),
 
@@ -31,8 +34,11 @@ export const ENV = parsed.data;
  * - ENV.DATABASE_URL: string
  * - ENV.JWT_SECRET: string
  * - ENV.COOKIE_NAME: string
+ * - ENV.REFRESH_COOKIE_NAME: string
  * - ENV.NODE_ENV: 'development' | 'test' | 'production'
  * - ENV.PORT: number
+ * - ENV.ACCESS_TOKEN_TTL: string
+ * - ENV.REFRESH_TOKEN_TTL_DAYS: number
  * - ENV.CORS_ORIGIN: string (original)
  * - ENV.CORS_ORIGINS: string[] (split list)
  */

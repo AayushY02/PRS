@@ -106,6 +106,25 @@ export const bookings = pgTable('bookings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    replacedBy: uuid('replaced_by'),
+  },
+  (t) => ({
+    tokenHashUnique: uniqueIndex('refresh_tokens_token_hash_unique').on(t.tokenHash),
+    userIdx: index('refresh_tokens_user_idx').on(t.userId),
+  }),
+);
+
 
 export const subSpotsRelations = relations(subSpots, ({ one, many }) => ({
   spot: one(spots, { fields: [subSpots.spotId], references: [spots.id] }),

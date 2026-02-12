@@ -163,6 +163,7 @@ const files = [
   '0002_constraints.sql',
   '0003_master_user.sql',
   '0004_vehicle_details.sql',
+  '0005_refresh_tokens.sql',
 ];
 
 async function run() {

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { ENV } from './env';
 import { db, schema } from './db';
@@ -38,9 +39,73 @@ export async function verifyUser(email: string, password: string) {
 }
 
 export function signJWT(userId: string) {
-  return jwt.sign({ sub: userId }, ENV.JWT_SECRET, { expiresIn: '1h' });
+  return jwt.sign({ sub: userId }, ENV.JWT_SECRET, { expiresIn: ENV.ACCESS_TOKEN_TTL });
 }
 
 export function verifyJWT(token: string) {
   return jwt.verify(token, ENV.JWT_SECRET) as { sub: string; iat: number; exp: number };
+}
+
+export type RefreshTokenRecord = {
+  id: string;
+  userId: string;
+  expiresAt: Date;
+};
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function refreshExpiryDate(): Date {
+  const days = ENV.REFRESH_TOKEN_TTL_DAYS;
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+export async function createRefreshToken(userId: string) {
+  const token = randomBytes(64).toString('hex');
+  const tokenHash = hashToken(token);
+  const expiresAt = refreshExpiryDate();
+
+  const [row] = await db
+    .insert(schema.refreshTokens)
+    .values({ userId, tokenHash, expiresAt })
+    .returning({ id: schema.refreshTokens.id, expiresAt: schema.refreshTokens.expiresAt });
+
+  return { token, record: row as RefreshTokenRecord };
+}
+
+export async function rotateRefreshToken(token: string) {
+  const tokenHash = hashToken(token);
+
+  const [existing] = await db
+    .select({
+      id: schema.refreshTokens.id,
+      userId: schema.refreshTokens.userId,
+      expiresAt: schema.refreshTokens.expiresAt,
+      revokedAt: schema.refreshTokens.revokedAt,
+    })
+    .from(schema.refreshTokens)
+    .where(eq(schema.refreshTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!existing) return null;
+  if (existing.revokedAt) return null;
+  if (existing.expiresAt.getTime() <= Date.now()) return null;
+
+  const { token: newToken, record } = await createRefreshToken(existing.userId);
+
+  await db
+    .update(schema.refreshTokens)
+    .set({ revokedAt: new Date(), replacedBy: record.id })
+    .where(eq(schema.refreshTokens.id, existing.id));
+
+  return { token: newToken, record };
+}
+
+export async function revokeRefreshToken(token: string) {
+  const tokenHash = hashToken(token);
+  await db
+    .update(schema.refreshTokens)
+    .set({ revokedAt: new Date() })
+    .where(eq(schema.refreshTokens.tokenHash, tokenHash));
 }
